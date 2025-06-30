@@ -29,7 +29,7 @@ dependencies:
   flutter_polyline_points: ^2.1.0
   google_maps_widget: ^1.0.6
   google_maps_flutter_platform_interface: ^2.11.1
-  latlong2: ^0.9.1
+  # latlong2: ^0.9.1
 
 dev_dependencies:
   flutter_test:

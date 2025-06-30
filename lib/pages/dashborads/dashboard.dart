@@ -8,64 +8,74 @@ class DashboardPageView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-          color: Colors.yellow,
-          gradient: LinearGradient(begin: Alignment.topRight, end: Alignment.bottomLeft, colors: [
-            Colors.white,
-            Colors.teal.shade100,
-            Colors.teal.shade200,
-            Colors.teal.shade300,
-            Colors.teal.shade100,
-            Colors.white,
-          ])),
-      child: Scaffold(
-        backgroundColor: Colors.transparent,
-        body: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 10),
-          child: ListView(
-            // crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _appBarBuilder(),
-              Padding(
-                padding: const EdgeInsets.only(top: 25, bottom: 5),
-                child: _title("Menu"),
-              ),
-              _builderMenu(),
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8.0),
-                child: _title("Recently"),
-              ),
-              ListView.separated(
-                  physics: const ClampingScrollPhysics(),
-                  shrinkWrap: true,
-                  itemBuilder: (context, index) {
-                    return const ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      leading: CircleAvatar(
-                        child: Text("B"),
-                      ),
-                      title: Text(
-                        'Chan Dara Flower',
-                        style: TextStyle(
-                          color: Colors.black,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                        ),
-                      ),
-                      subtitle: Text(
-                        'The easiest way to measure the acreage of a plot of land is to start by entering an address that is associated with the plot of land you need the area of.',
-                        maxLines: 2,
-                      ),
-                    );
-                  },
-                  separatorBuilder: (context, index) {
-                    return const Divider();
-                  },
-                  itemCount: 5)
-            ],
+    return Scaffold(
+      backgroundColor: Colors.grey.shade50,
+      body: Stack(
+        children: [
+          Positioned.fill(
+              child: Container(
+            decoration: BoxDecoration(
+                color: Colors.yellow,
+                gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomLeft, colors: [
+                  Colors.grey.shade50,
+                  Colors.teal.shade100,
+                  Colors.teal.shade200,
+                  Colors.teal.shade100,
+                  Colors.cyan.shade100,
+                  Colors.white70,
+                ])),
+          )),
+          const Positioned.fill(
+            child: BackdropFilter(
+              filter: ColorFilter.mode(Colors.grey, BlendMode.hardLight),
+            ),
           ),
-        ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 10),
+            child: ListView(
+              // crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _appBarBuilder(),
+                Padding(
+                  padding: const EdgeInsets.only(top: 25, bottom: 5),
+                  child: _title("Menu"),
+                ),
+                _builderMenu(),
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8.0),
+                  child: _title("Recently"),
+                ),
+                ListView.separated(
+                    physics: const ClampingScrollPhysics(),
+                    shrinkWrap: true,
+                    itemBuilder: (context, index) {
+                      return const ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: CircleAvatar(
+                          child: Text("B"),
+                        ),
+                        title: Text(
+                          'Chan Dara Flower',
+                          style: TextStyle(
+                            color: Colors.black,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                          ),
+                        ),
+                        subtitle: Text(
+                          'The easiest way to measure the acreage of a plot of land is to start by entering an address that is associated with the plot of land you need the area of.',
+                          maxLines: 2,
+                        ),
+                      );
+                    },
+                    separatorBuilder: (context, index) {
+                      return const Divider();
+                    },
+                    itemCount: 5)
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

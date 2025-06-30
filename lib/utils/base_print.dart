@@ -20,6 +20,8 @@ class BaseLogger {
   }
 
   static void log(dynamic message) {
+    String environment = const String.fromEnvironment('environment');
+    print(environment);
     print('\x1B[36m📗:$message\x1B[0m');
   }
 }

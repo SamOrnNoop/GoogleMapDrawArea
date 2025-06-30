@@ -23,10 +23,10 @@ class MarkerCustome {
     return RepaintBoundary(key: globalKey, child: child);
   }
 }
-// import 'dart:typed_data';
-// import 'dart:ui' as ui;
 
-extension ToBitDescription on Widget {
+class ToBitDescription {
+  final Widget child;
+  const ToBitDescription(this.child);
   Future<BitmapDescriptor> toBitmapDescriptor(
       {Size? logicalSize,
       Size? imageSize,
@@ -34,7 +34,11 @@ extension ToBitDescription on Widget {
       TextDirection textDirection = TextDirection.ltr}) async {
     final widget = RepaintBoundary(
       child: MediaQuery(
-          data: const MediaQueryData(), child: Directionality(textDirection: TextDirection.ltr, child: this)),
+          data: const MediaQueryData(),
+          child: Directionality(
+            textDirection: TextDirection.ltr,
+            child: child,
+          )),
     );
 
     final view = ui.PlatformDispatcher.instance.views.first;

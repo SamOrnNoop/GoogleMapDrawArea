@@ -16,9 +16,14 @@ class DrawWitPointMapPage extends StatelessWidget {
         builder: (cxt) {
           return DefaultScaffold(
             body: GoogleMap(
+              onMapCreated: cxt.onCreateController,
+              scrollGesturesEnabled: true,
+              buildingsEnabled: true,
               initialCameraPosition: MaterialGoogleMap.cameraPosition,
               minMaxZoomPreference: MaterialGoogleMap.minMaxZoomPreference,
-              onTap: cxt.onGeLocation,
+              markers: Set.of(cxt.getMarkerPoint),
+              polylines: cxt.polylinePoint(),
+              onTap: cxt.onChangedPoistion,
             ),
           );
         });
