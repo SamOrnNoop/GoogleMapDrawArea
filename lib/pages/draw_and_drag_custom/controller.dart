@@ -1,17 +1,14 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_map_line_editor/flutter_map_line_editor.dart' as edit;
-import 'package:flutter_polyline_points/flutter_polyline_points.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:get/get.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:google_maps_flutter_platform_interface/google_maps_flutter_platform_interface.dart';
 import 'package:google_maps_widget/google_maps_widget.dart';
-import 'package:latlong2/latlong.dart' as lltllng;
 import 'package:learn_map/controller/poly_smater.dart';
-
 import 'package:learn_map/utils/base_print.dart';
+import 'package:learn_map/utils/collection.dart';
 import 'package:learn_map/utils/constants.dart';
 import 'package:learn_map/utils/material_map.dart';
 
@@ -20,6 +17,7 @@ class DragCustomEventGetXController extends GetxController {
   GoogleMapController? controller;
   List<LatLng> points = [];
   Set<Marker> pointMaker = {};
+  Set<Circle> circleCurrentPoint = {};
 
   LatLng? setlectLatLong;
 
@@ -36,22 +34,26 @@ class DragCustomEventGetXController extends GetxController {
     update();
   }
 
-  void onCreateController(GoogleMapController cxt) {
+  void onCreateController(GoogleMapController cxt) async {
     mapservice.init(cxt.mapId);
 
     controller = cxt;
+    MaterialGoogleMap.onAnimatedZoomToCurrent(cxt);
+    Geolocator.getLastKnownPosition().then((position) {
+      if (position == null) return;
+      circleCurrentPoint.add(_circle(LatLng(position.latitude, position.longitude)));
+      update();
+    });
   }
 
-  Set<Circle> get circle {
-    return {
-      Circle(
-          circleId: const CircleId('circle_parse'),
-          center: MaterialGoogleMap.cameraPosition.target,
-          radius: 0.4,
-          fillColor: Colors.blue,
-          strokeColor: Colors.red,
-          strokeWidth: 2)
-    };
+  Circle _circle(LatLng latlng) {
+    return Circle(
+        circleId: const CircleId('currentPoinst'),
+        center: latlng,
+        radius: 2.5,
+        fillColor: Colors.blue,
+        strokeColor: Colors.red,
+        strokeWidth: 2);
   }
 
   Set<Polyline> get polylin {
@@ -95,6 +97,8 @@ class DragCustomEventGetXController extends GetxController {
   void onRemoveMap() {
     pointMaker.clear();
     points.clear();
+    pointMaker = {};
+    points = [];
 
     update();
   }
@@ -132,43 +136,35 @@ class DragCustomEventGetXController extends GetxController {
     pointMaker.add(_marker(latLng, 2));
     int index = points.length - 2;
 
-    double matter = Geolocator.distanceBetween(
-      points[index].latitude,
-      points[index].longitude,
-      latLng.latitude,
-      latLng.longitude,
-    );
-
-    if (matter.ceil() > 1) {
-      points.insert(index, latLng);
-    }
+    // if (matter.ceil() > 1) {
+    points.insert(index, latLng);
+    // }
 
     update();
   }
 
-  int indecateIndex = 0;
-  Set<LatLng> sampleLate = {};
+  // Set<LatLng> sampleLate = {};
+
   void onDragEndFindCurveAndConer() async {
-    for (int index = 0; index < points.length; index++) {
+    int indecateIndex = 0;
+    final List<LatLng> curveCornerpoints = PolylineAnalyzer().selectOnlyCornerAndCurve(points.toList())
+      ..remove
+      ..removeLast();
+
+    await Recurvice(curveCornerpoints).forEach(callback: (index, latlng) {
       double matter = Geolocator.distanceBetween(
-        points[indecateIndex].latitude,
-        points[indecateIndex].longitude,
-        points[index].latitude,
-        points[index].longitude,
+        curveCornerpoints[indecateIndex].latitude,
+        curveCornerpoints[indecateIndex].longitude,
+        latlng.latitude,
+        latlng.longitude,
       );
 
       if (matter.ceil() > 2) {
-        sampleLate.add(points[indecateIndex]);
-
+        pointMaker.add(_marker(latlng, index));
         indecateIndex = index;
       }
-    }
+    });
 
-    ExPolyEditor polyEditor =
-        ExPolyEditor(points: sampleLate.toList(), addClosePathMarker: false, intermediateIcon: false);
-    for (final LatLng latLng in polyEditor.edit()) {
-      pointMaker.add(_marker(latLng, indecateIndex++));
-      update();
-    }
+    update();
   }
 }

@@ -1,9 +1,6 @@
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:learn_map/utils/base_print.dart';
 
-import 'dart:math';
-import 'package:flutter/material.dart'; // For Offset
-
 class ExPolyEditor {
   final List<LatLng> points;
   // final Widget pointIcon;
@@ -122,12 +119,13 @@ class PolylineAnalyzer {
       upper.add(p);
     }
 
-    // Build lower hull
+    // // Build lower hull
     for (int i = points.length - 1; i >= 0; i--) {
       LatLng p = points[i];
       while (lower.length >= 2 && _crossProduct(lower[lower.length - 2], lower.last, p) <= 0) {
         lower.removeLast();
       }
+
       lower.add(p);
     }
 

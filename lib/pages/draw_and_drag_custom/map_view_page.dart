@@ -8,8 +8,6 @@ import 'package:learn_map/pages/draw_and_drag_custom/controller.dart';
 import 'package:learn_map/utils/defualt_scaffold.dart';
 import 'package:learn_map/utils/material_map.dart';
 
-import '../../controller/poly_smater.dart';
-
 class DrawAndDragCustomEventPage extends StatelessWidget {
   const DrawAndDragCustomEventPage({super.key});
 
@@ -33,15 +31,17 @@ class DrawAndDragCustomEventPage extends StatelessWidget {
         padding: const EdgeInsets.all(5),
         child: FloatingActionButton(
           onPressed: () async {
-            PolylineAnalyzer analyzer = PolylineAnalyzer();
-            // print(analyzer.findCurveSegments(pointType, 150));
-            // for (final List<Offset> pointT in analyzer.findCurveSegments(pointType, 150)) {
-            //   for (final Offset offset in pointT) {
-            //     final location =
-            //         await mapController.getDrag(DragUpdateDetails(localPosition: offset, globalPosition: offset));
-            //     BaseLogger.log(location);
-            //   }
-            // }
+            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+              content: Text(
+                "We are developing right now. You cannot save anything here.",
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 18),
+              ),
+              // margin: EdgeInsets.symmetric(horizontal: 10),
+              backgroundColor: Colors.grey,
+              clipBehavior: Clip.none,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(10))),
+            ));
           },
           child: const Icon(Icons.save),
         ),
@@ -122,6 +122,7 @@ class DrawAndDragCustomEventPage extends StatelessWidget {
           : (detail) {
               cxt.onToggleDrag();
               animatedController.onGetAnimation();
+              cxt.onDragEndFindCurveAndConer();
             },
       child: IgnorePointer(
         ignoring: cxt.isToggleDrag,
@@ -136,6 +137,7 @@ class DrawAndDragCustomEventPage extends StatelessWidget {
           initialCameraPosition: MaterialGoogleMap.cameraPosition,
           onMapCreated: cxt.onCreateController,
           zoomControlsEnabled: true,
+          myLocationEnabled: true,
           minMaxZoomPreference: MaterialGoogleMap.minMaxZoomPreference,
         ),
       ),
