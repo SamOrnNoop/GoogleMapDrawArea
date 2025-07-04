@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:google_maps_flutter_platform_interface/google_maps_flutter_platform_interface.dart';
 import 'package:learn_map/utils/base_print.dart';
 import 'package:learn_map/utils/marker_custome.dart';
 import 'package:learn_map/widgets/widget_marker.dart';
@@ -11,7 +13,7 @@ class MaterialGoogleMap {
   static CameraPosition cameraPosition =
       CameraPosition(target: const LatLng(11.58330103577817, 104.88023529639402), zoom: minMaxZoomPreference.minZoom!);
 
-  static MinMaxZoomPreference minMaxZoomPreference = const MinMaxZoomPreference(15, 30);
+  static MinMaxZoomPreference minMaxZoomPreference = const MinMaxZoomPreference(16, 40);
 
   static BitmapDescriptor get iconPoint => _iconPoint ?? BitmapDescriptor.defaultMarker;
 

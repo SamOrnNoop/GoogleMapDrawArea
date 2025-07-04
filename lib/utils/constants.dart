@@ -5,3 +5,10 @@ class Constants {
 
   static const Color primaryColor = Color.fromARGB(255, 95, 117, 115);
 }
+
+extension CheckBoo on bool {
+  bool toggle() {
+    if (this == false) return true;
+    return false;
+  }
+}
