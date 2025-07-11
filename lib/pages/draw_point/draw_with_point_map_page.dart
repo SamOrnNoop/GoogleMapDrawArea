@@ -3,7 +3,6 @@ import 'package:get/get.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:learn_map/pages/draw_point/controller.dart';
 import 'package:learn_map/utils/material_map.dart';
-
 import '../../utils/defualt_scaffold.dart';
 
 class DrawWitPointMapPage extends StatelessWidget {
@@ -16,9 +15,11 @@ class DrawWitPointMapPage extends StatelessWidget {
         builder: (cxt) {
           return DefaultScaffold(
             body: GoogleMap(
+              compassEnabled: false,
               onMapCreated: cxt.onCreateController,
-              scrollGesturesEnabled: true,
-              buildingsEnabled: true,
+              scrollGesturesEnabled: false,
+              buildingsEnabled: false,
+              zoomGesturesEnabled: false,
               initialCameraPosition: MaterialGoogleMap.cameraPosition,
               minMaxZoomPreference: MaterialGoogleMap.minMaxZoomPreference,
               markers: Set.of(cxt.getMarkerPoint),

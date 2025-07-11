@@ -54,8 +54,6 @@ class _MapShapePageState extends State<MapShapePage> {
                       onTap: () async {
                         ScreenCoordinate screen =
                             await controller.mapController.getScreenCoordinate(MapGetController.cameraPosition.target);
-                        final location = await controller.mapController.getLatLng(screen);
-                        print(location.toString());
                       },
                       onPanEnd: !isDraggabel
                           ? null
@@ -339,70 +337,4 @@ class _MapShapePageState extends State<MapShapePage> {
           );
         });
   }
-}
-
-class Test extends DragGestureRecognizer {
-  Function _test;
-
-  Test(this._test);
-
-  @override
-  void resolve(GestureDisposition disposition) {
-    super.resolve(disposition);
-    _test();
-  }
-
-  @override
-  void acceptGesture(int pointer) {
-    super.acceptGesture(pointer);
-  }
-
-  @override
-  void addAllowedPointer(PointerDownEvent event) {
-    log(event.toString());
-    super.addAllowedPointer(event);
-  }
-
-  @override
-  void addPointer(PointerDownEvent event) {
-// print(event.delta.)x
-    onUpdate?.call(DragUpdateDetails(
-      globalPosition: event.localDelta,
-      delta: event.delta,
-      primaryDelta: event.orientation,
-      localPosition: event.localPosition,
-    ));
-    super.addPointer(event);
-  }
-
-  @override
-  bool get onlyAcceptDragOnThreshold => true;
-  @override
-  GestureDragUpdateCallback? get onUpdate {
-    log('asdfsadfljsdf');
-    return super.onUpdate;
-  }
-
-  @override
-  @override
-  DragStartBehavior get dragStartBehavior => DragStartBehavior.down;
-  @override
-  String get debugDescription => "UPDATING";
-  @override
-  @override
-  bool isFlingGesture(VelocityEstimate estimate, PointerDeviceKind kind) {
-    return kind == PointerDeviceKind.touch;
-  }
-}
-
-class Dragger extends MultiDragGestureRecognizer {
-  Dragger({required super.debugOwner});
-
-  @override
-  MultiDragPointerState createNewPointerState(PointerDownEvent event) {
-    throw UnimplementedError();
-  }
-
-  @override
-  String get debugDescription => throw UnimplementedError();
 }

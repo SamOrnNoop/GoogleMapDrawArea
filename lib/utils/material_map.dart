@@ -2,13 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 
 import 'package:google_maps_flutter/google_maps_flutter.dart';
-import 'package:google_maps_flutter_platform_interface/google_maps_flutter_platform_interface.dart';
+
 import 'package:learn_map/utils/base_print.dart';
 import 'package:learn_map/utils/marker_custome.dart';
 import 'package:learn_map/widgets/widget_marker.dart';
 
 BitmapDescriptor? _iconPoint;
 BitmapDescriptor? _udpateIconPoint;
+BitmapDescriptor? _suggestionIcon;
 
 class MaterialGoogleMap {
   static CameraPosition cameraPosition =
@@ -20,11 +21,16 @@ class MaterialGoogleMap {
 
   static BitmapDescriptor get updateIconPoint => _udpateIconPoint ?? BitmapDescriptor.defaultMarker;
 
+  static BitmapDescriptor get iconSmall => _suggestionIcon ?? BitmapDescriptor.defaultMarker;
+
   static void initIconMarker() async {
-    _iconPoint ??= await ToBitDescription(WidgetMarker.icon()).toBitmapDescriptor();
-    _udpateIconPoint ??= await ToBitDescription(
-      WidgetMarker.icon(fillColor: Colors.blue, borderColor: Colors.yellow, size: 18),
-    ).toBitmapDescriptor();
+    ToBitDescription(WidgetMarker.icon()).toBitmapDescriptor().then((icon) => _iconPoint = icon);
+    ToBitDescription(
+      WidgetMarker.icon(fillColor: Colors.redAccent, borderColor: Colors.yellow, size: 18.0),
+    ).toBitmapDescriptor().then((icon) => _udpateIconPoint = icon);
+    ToBitDescription(WidgetMarker.icon(fillColor: Colors.green, borderColor: Colors.green, size: 12))
+        .toBitmapDescriptor()
+        .then((icon) => _suggestionIcon = icon);
     Geolocator.getCurrentPosition();
     BaseLogger.log('Has downloaded and saved Icon point');
   }
@@ -48,5 +54,15 @@ class MaterialGoogleMap {
         });
       }
     });
+  }
+
+  static bool isBearingCalulat(int long, LatLng start, LatLng end) {
+    double calcu = Geolocator.distanceBetween(
+      start.latitude,
+      start.longitude,
+      end.latitude,
+      end.longitude,
+    );
+    return calcu.ceil() > long;
   }
 }

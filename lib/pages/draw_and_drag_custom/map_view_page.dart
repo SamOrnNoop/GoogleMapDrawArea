@@ -4,7 +4,6 @@ import 'package:get/get.dart';
 import 'package:google_maps_widget/google_maps_widget.dart';
 import 'package:learn_map/pages/draw_and_drag_custom/animation_controller.dart';
 import 'package:learn_map/pages/draw_and_drag_custom/controller.dart';
-
 import 'package:learn_map/utils/defualt_scaffold.dart';
 import 'package:learn_map/utils/material_map.dart';
 
@@ -112,20 +111,19 @@ class DrawAndDragCustomEventPage extends StatelessWidget {
       behavior: HitTestBehavior.opaque,
       supportedDevices: const {PointerDeviceKind.touch, PointerDeviceKind.trackpad},
       dragStartBehavior: DragStartBehavior.down,
-      onPanUpdate: cxt.isToggleDrag
-          ? (details) {
-              cxt.onDragLocation(details);
-            }
-          : null,
-      onPanEnd: !cxt.isToggleDrag
-          ? null
-          : (detail) {
-              cxt.onToggleDrag();
-              animatedController.onGetAnimation();
-              cxt.onDragEndFindCurveAndConer();
-            },
+      onScaleUpdate: cxt.onDragUpdate,
+      // onPanUpdate: cxt.onDragUpdate,
+      onScaleEnd: switch (cxt.isToggleDrag) {
+        true => (detail) {
+            cxt.onToggleDrag();
+            animatedController.onGetAnimation();
+            cxt.onDragEndFindCurveAndConer();
+          },
+        _ => null,
+      },
       child: IgnorePointer(
-        ignoring: cxt.isToggleDrag,
+        ignoring: false,
+        // ignoring: cxt.isToggleDrag,
         child: GoogleMap(
           scrollGesturesEnabled: true,
           zoomGesturesEnabled: true,
@@ -138,6 +136,9 @@ class DrawAndDragCustomEventPage extends StatelessWidget {
           onMapCreated: cxt.onCreateController,
           zoomControlsEnabled: true,
           myLocationEnabled: true,
+          onTap: (value) {
+            cxt.onSelectReset();
+          },
           minMaxZoomPreference: MaterialGoogleMap.minMaxZoomPreference,
         ),
       ),
