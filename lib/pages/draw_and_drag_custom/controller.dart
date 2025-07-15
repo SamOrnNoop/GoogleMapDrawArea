@@ -1,7 +1,5 @@
 import 'dart:async';
-
 import 'package:flutter/material.dart';
-import 'package:flutter_polyline_points/flutter_polyline_points.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:get/get.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
@@ -21,7 +19,7 @@ class DragCustomEventGetXController extends GetxController {
   Set<Marker> pointMaker = {};
   Set<Circle> circleCurrentPoint = {};
   SelectedPoint? selectedPoint;
-
+  bool isToggleWalkTrack = false;
   // LatLng? setlectLatLong;
 
   GoogleMapsFlutterPlatform get mapservice => GoogleMapsFlutterPlatform.instance;
@@ -33,6 +31,12 @@ class DragCustomEventGetXController extends GetxController {
   bool _isToggleDrag = false;
 
   bool get isToggleDrag => _isToggleDrag;
+  void onToggleWalkTrack() {
+    isToggleWalkTrack = isToggleWalkTrack.toggle();
+    if (!isToggleWalkTrack && points.isNotEmpty) _onConnectionLine();
+
+    update();
+  }
 
   void onToggleDrag() {
     _isToggleDrag = _isToggleDrag.toggle();
@@ -52,6 +56,7 @@ class DragCustomEventGetXController extends GetxController {
     MaterialGoogleMap.onAnimatedZoomToCurrent(cxt);
     Geolocator.getLastKnownPosition().then((position) {
       if (position == null) return;
+
       circleCurrentPoint.add(_circle(LatLng(position.latitude, position.longitude)));
       update();
     });
@@ -93,40 +98,6 @@ class DragCustomEventGetXController extends GetxController {
     selectedPoint = value;
   }
 
-  Marker _marker(LatLng latlng, String id, [BitmapDescriptor? icon, int? index]) {
-    // String id = 'marker_id_$iD';
-    return Marker(
-      markerId: MarkerId(id),
-      anchor: const Offset(0.5, 0.5),
-      icon: icon ?? MaterialGoogleMap.iconPoint,
-      consumeTapEvents: true,
-      draggable: false,
-      onTap: () async {
-        isMarkerDarg = true;
-        SelectedPoint select = SelectedPoint(id: id, value: latlng);
-        updateMarker(select);
-        BaseLogger.log("Marker Tap lng: $latlng : id:$id ");
-        if (index != null) {
-          points.insert(index, select.value);
-          _onRemoveMarkerById(id);
-          pointMaker.add(_marker(select.value, constMapId.idPointMarker(select.value)));
-        }
-
-        onTapAndDragNewPoint(select);
-        BaseLogger.log("Marker add new Item :$index ");
-        update();
-      },
-      position: latlng,
-    );
-  }
-
-  void _onConnectionLine() {
-    if (<LatLng>{points.first}.difference({points.last}).isNotEmpty) {
-      points.add(points.first);
-    }
-    return;
-  }
-
   void onRemoveMap() {
     if (selectedPoint != null) {
       _onRemoveMarkerById(selectedPoint!.id);
@@ -134,7 +105,6 @@ class DragCustomEventGetXController extends GetxController {
       selectedPoint = null;
       isMarkerDarg = false;
       _onConnectionLine();
-      _removeIconSuggession();
     } else {
       pointMaker.clear();
       points.clear();
@@ -145,26 +115,16 @@ class DragCustomEventGetXController extends GetxController {
     update();
   }
 
-  void onSelectReset() {
+  void onSelectReset(LatLng latlng) {
     isMarkerDarg = false;
-    _removeIconSuggession();
-    onResetMarkerToDefualt();
+    // _removeIconSuggession();
+    _onResetMarkerToDefualt();
+    PolylineAnalyzer(points).isFind180Degree(latlng, (index, position) {
+      pointMaker.add(_marker(latlng, constMapId.idPointMarker(latlng.hashCode)));
+      points.insert(index, position);
+    });
 
     update();
-  }
-
-  void _onRemoveMarkerById(String id) => pointMaker.removeWhere((e) => e.markerId.value == id);
-  void onResetMarkerToDefualt([bool isDefault = true]) {
-    if (selectedPoint != null) {
-      _onRemoveMarkerById(selectedPoint!.id);
-      if (isDefault) {
-        pointMaker.add(_marker(selectedPoint!.value, selectedPoint!.id));
-      } else {
-        pointMaker.add(_marker(selectedPoint!.value, selectedPoint!.id).copyWith(
-          iconParam: MaterialGoogleMap.updateIconPoint,
-        ));
-      }
-    }
   }
 
   EdgeInsets get viewSafe => MediaQuery.of(Get.context!).systemGestureInsets;
@@ -208,40 +168,63 @@ class DragCustomEventGetXController extends GetxController {
     });
   }
 
-  double _scaleZoome = 1.1;
   void onDragUpdatePositionPoint(ScaleUpdateDetails details) async {
     final LatLng latLng = await getDrag(
         DragUpdateDetails(globalPosition: details.localFocalPoint, localPosition: details.localFocalPoint));
-    if (details.pointerCount > 1) {
-      BaseLogger.log(details.scale);
-      double zoom = await controller!.getZoomLevel();
 
-      if (details.scale > _scaleZoome) {
-        await controller?.animateCamera(CameraUpdate.zoomTo(zoom + 1));
+    await controller?.animateCamera(CameraUpdate.newLatLng(
+      LatLng(latLng.latitude, latLng.longitude),
+    ));
+    return;
+    if (details.pointerCount > 1) {
+      double zoom = await controller!.getZoomLevel();
+      // await controller?.animateCamera(zoom);
+
+      if (details.scale.toInt() >= 0) {
+        await controller?.moveCamera(CameraUpdate.zoomBy(zoom - 0.5));
       } else {
-        await controller?.animateCamera(CameraUpdate.zoomTo(zoom - 1));
+        await controller?.moveCamera(CameraUpdate.zoomBy(zoom + 0.5));
       }
-      _scaleZoome = details.scale;
+
       return;
-    } else if (details.pointerCount <= 1 && details.scale == 1.0) {
+    } else if (details.pointerCount < 2) {
       isMarkerDarg = true;
+
+      bool isAllowDrag = MaterialGoogleMap.isBearingCalulat(10, selectedPoint!.value, latLng, false);
+      if (!isAllowDrag) return;
 
       if (selectedPoint == null) return;
       if (selectedPoint!.isMomentPoint(points.first) && selectedPoint!.isMomentPoint(points.last)) {
-        onTapAndDragNewPoint(selectedPoint!);
         points.first = latLng;
         points.last = latLng;
       } else {
         int indexWhere = points.indexWhere((point) => selectedPoint!.isMomentPoint(point));
         if (indexWhere.isNegative) return;
         points[indexWhere] = latLng;
-        onTapAndDragNewPoint(selectedPoint!, indexWhere);
       }
 
       selectedPoint = SelectedPoint(id: selectedPoint!.id, value: latLng);
 
       updateMarker(selectedPoint!);
     }
+    update();
+  }
+
+  void onGetWalkingTrack() async {
+    Geolocator.checkPermission().then((permission) {
+      if (MaterialGoogleMap.isOnlyDenied(permission)) {
+        ScaffoldMessenger.of(Get.context!).showSnackBar(const SnackBar(content: Text("No permission GPS")));
+      }
+    });
+    Position position = await Geolocator.getCurrentPosition();
+    LatLng latlng = LatLng(position.latitude, position.longitude);
+
+    points.add(latlng);
+    pointMaker.add(_marker(
+      latlng,
+      const MapIdConstants().idPointMarker(latlng.latitude.hashCode),
+    ));
+
     update();
   }
 
@@ -265,8 +248,10 @@ class DragCustomEventGetXController extends GetxController {
       LatLng getAdvide = MaterialGoogleMap.getAdviceMediatePointHandle(resultPoints[lastIndex - 1], resultPoints.last);
       resultPoints.insert(lastIndex, getAdvide);
     }
-    await Recurvice(resultPoints)
-        .forEach(callback: (index, value) => pointMaker.add(_marker(value, constMapId.idPointMarker(value.hashCode))));
+
+    await Recurvice(resultPoints).forEach(callback: (index, value) {
+      pointMaker.add(_marker(value, constMapId.idPointMarker(value.hashCode)));
+    });
 
     points = resultPoints;
     update();
@@ -275,48 +260,50 @@ class DragCustomEventGetXController extends GetxController {
   Future<(int, LatLng?)> wherePoint(SelectedPoint p) async =>
       await Recurvice(points).where((latlng) => p.isMomentPoint(latlng));
 
-  void onTapAndDragNewPoint(SelectedPoint selectP, [int? dragIndex]) async {
-    int index = dragIndex ?? (await wherePoint(selectP)).$1;
-    //  points.indexWhere((latlng) => selectP.isMomentPoint(latlng));
-    if (index.isNegative) return;
-    int length = points.length - 1;
-    int prevIndex = switch (index) { 0 => length - 1, _ => index - 1 };
-    int nextIndex = length == index ? 0 : index + 1;
-
-    LatLng prevPoint = points[prevIndex];
-    LatLng currentPoint = selectP.value;
-    LatLng nextPoint = points[nextIndex];
-
-    String idPrev = constMapId.idPrevMarker;
-    String idNext = constMapId.idNextMarker;
-
-    if (MaterialGoogleMap.isBearingCalulat(15, prevPoint, currentPoint)) {
-      LatLng prev = MaterialGoogleMap.getAdviceMediatePointHandle(prevPoint, currentPoint);
-      pointMaker.add(_marker(prev, idPrev, MaterialGoogleMap.iconSmall, prevIndex + 1));
-    } else {
-      _onRemoveMarkerById(idPrev);
-    }
-
-    if (MaterialGoogleMap.isBearingCalulat(15, currentPoint, nextPoint)) {
-      LatLng next = MaterialGoogleMap.getAdviceMediatePointHandle(currentPoint, nextPoint);
-      pointMaker.add(_marker(next, idNext, MaterialGoogleMap.iconSmall, nextIndex));
-    } else {
-      _onRemoveMarkerById(idNext);
-    }
+  Marker _marker(LatLng latlng, String id, [BitmapDescriptor? icon]) {
+    // String id = 'marker_id_$iD';
+    return Marker(
+      markerId: MarkerId(id),
+      anchor: const Offset(0.5, 0.5),
+      icon: icon ?? MaterialGoogleMap.iconPoint,
+      consumeTapEvents: true,
+      draggable: false,
+      onTap: () async {
+        isMarkerDarg = true;
+        SelectedPoint select = SelectedPoint(id: id, value: latlng);
+        updateMarker(select);
+        BaseLogger.log("Marker Tap lng: $latlng : id:$id ");
+        // if (index != null) {
+        //   points.insert(index, select.value);
+        //   _onRemoveMarkerById(id);
+        //   pointMaker.add(_marker(select.value, constMapId.idPointMarker(select.value)));
+        // }
+        update();
+      },
+      position: latlng,
+    );
   }
 
-  void _handleMapTap(LatLng tappedLatLng) {
-    bool polylineTapped = false;
-    Recurvice(points).forEach(callback: (index, value) {});
-
-    if (!polylineTapped) {
-      BaseLogger.log('Map tap at ${tappedLatLng.latitude}, ${tappedLatLng.longitude} is not on any polyline.');
+  void _onConnectionLine() {
+    if (<LatLng>{points.first}.difference({points.last}).isNotEmpty) {
+      points.add(points.first);
     }
+    return;
   }
 
-  void _removeIconSuggession() {
-    _onRemoveMarkerById(constMapId.idPrevMarker);
-    _onRemoveMarkerById(constMapId.idNextMarker);
+  void _onRemoveMarkerById(String id) => pointMaker.removeWhere((e) => e.markerId.value == id);
+
+  void _onResetMarkerToDefualt([bool isDefault = true]) {
+    if (selectedPoint != null) {
+      _onRemoveMarkerById(selectedPoint!.id);
+      if (isDefault) {
+        pointMaker.add(_marker(selectedPoint!.value, selectedPoint!.id));
+      } else {
+        pointMaker.add(_marker(selectedPoint!.value, selectedPoint!.id).copyWith(
+          iconParam: MaterialGoogleMap.updateIconPoint,
+        ));
+      }
+    }
   }
 }
 
@@ -337,3 +324,36 @@ class MapIdConstants {
   String idPointMarker([Object? id]) => "marker_id_$id";
   const MapIdConstants();
 }
+
+
+
+
+  // void onTapAndDragNewPoint(SelectedPoint selectP, [int? dragIndex]) async {
+  //   int index = dragIndex ?? (await wherePoint(selectP)).$1;
+  //   //  points.indexWhere((latlng) => selectP.isMomentPoint(latlng));
+  //   if (index.isNegative) return;
+  //   int length = points.length - 1;
+  //   int prevIndex = switch (index) { 0 => length - 1, _ => index - 1 };
+  //   int nextIndex = length == index ? 0 : index + 1;
+
+  //   LatLng prevPoint = points[prevIndex];
+  //   LatLng currentPoint = selectP.value;
+  //   LatLng nextPoint = points[nextIndex];
+
+  //   String idPrev = constMapId.idPrevMarker;
+  //   String idNext = constMapId.idNextMarker;
+
+  //   if (MaterialGoogleMap.isBearingCalulat(15, prevPoint, currentPoint)) {
+  //     LatLng prev = MaterialGoogleMap.getAdviceMediatePointHandle(prevPoint, currentPoint);
+  //     pointMaker.add(_marker(prev, idPrev, MaterialGoogleMap.iconSmall, prevIndex + 1));
+  //   } else {
+  //     _onRemoveMarkerById(idPrev);
+  //   }
+
+  //   if (MaterialGoogleMap.isBearingCalulat(15, currentPoint, nextPoint)) {
+  //     LatLng next = MaterialGoogleMap.getAdviceMediatePointHandle(currentPoint, nextPoint);
+  //     pointMaker.add(_marker(next, idNext, MaterialGoogleMap.iconSmall, nextIndex));
+  //   } else {
+  //     _onRemoveMarkerById(idNext);
+  //   }
+  // }

@@ -43,7 +43,7 @@ class MaterialGoogleMap {
   static void onAnimatedZoomToCurrent(GoogleMapController cxt) {
     Geolocator.checkPermission().then((permission) {
       BaseLogger.printError(permission);
-      if (permission == LocationPermission.denied || permission == LocationPermission.deniedForever) {
+      if (isOnlyDenied(permission)) {
         Geolocator.openAppSettings();
       } else {
         Geolocator.getLastKnownPosition().then((position) async {
@@ -56,13 +56,17 @@ class MaterialGoogleMap {
     });
   }
 
-  static bool isBearingCalulat(int long, LatLng start, LatLng end) {
+  static bool isOnlyDenied(LocationPermission permission) {
+    return permission == LocationPermission.denied || permission == LocationPermission.deniedForever;
+  }
+
+  static bool isBearingCalulat(int long, LatLng start, LatLng end, [bool isGreaterthan = true]) {
     double calcu = Geolocator.distanceBetween(
       start.latitude,
       start.longitude,
       end.latitude,
       end.longitude,
     );
-    return calcu.ceil() > long;
+    return isGreaterthan ? calcu.ceil() > long : calcu.ceil() < long;
   }
 }

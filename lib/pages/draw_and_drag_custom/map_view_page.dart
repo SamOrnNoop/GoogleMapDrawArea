@@ -4,8 +4,11 @@ import 'package:get/get.dart';
 import 'package:google_maps_widget/google_maps_widget.dart';
 import 'package:learn_map/pages/draw_and_drag_custom/animation_controller.dart';
 import 'package:learn_map/pages/draw_and_drag_custom/controller.dart';
+import 'package:learn_map/utils/base_print.dart';
 import 'package:learn_map/utils/defualt_scaffold.dart';
 import 'package:learn_map/utils/material_map.dart';
+
+import 'walk_track.dart';
 
 class DrawAndDragCustomEventPage extends StatelessWidget {
   const DrawAndDragCustomEventPage({super.key});
@@ -14,38 +17,41 @@ class DrawAndDragCustomEventPage extends StatelessWidget {
   DragCustomEventGetXController get mapController => Get.put(DragCustomEventGetXController());
   @override
   Widget build(BuildContext context) {
-    return DefaultScaffold(
-      body: GetBuilder(
-          init: mapController,
-          builder: (cxt) {
-            return Stack(
-              children: [
-                _googleMapBuilder(cxt),
-                _headerBuilder(cxt),
-              ],
-            );
-          }),
-      floatingActionButtonLocation: FloatingActionButtonLocation.startFloat,
-      floatingActionButton: Padding(
-        padding: const EdgeInsets.all(5),
-        child: FloatingActionButton(
-          onPressed: () async {
-            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-              content: Text(
-                "We are developing right now. You cannot save anything here.",
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 18),
+    return GetBuilder(
+        init: mapController,
+        builder: (cxt) {
+          return DefaultScaffold(
+              body: Stack(
+                children: [
+                  _googleMapBuilder(cxt),
+                  _headerBuilder(cxt),
+                  _openWalkerTracker(cxt),
+                ],
               ),
-              // margin: EdgeInsets.symmetric(horizontal: 10),
-              backgroundColor: Colors.grey,
-              clipBehavior: Clip.none,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(10))),
-            ));
-          },
-          child: const Icon(Icons.save),
-        ),
-      ),
-    );
+              floatingActionButtonLocation: FloatingActionButtonLocation.startFloat,
+              floatingActionButton: switch (mapController.isToggleWalkTrack) {
+                true => const Center(),
+                _ => Padding(
+                    padding: const EdgeInsets.all(5),
+                    child: FloatingActionButton(
+                      onPressed: () async {
+                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                          content: Text(
+                            "We are developing right now. You cannot save anything here.",
+                            textAlign: TextAlign.center,
+                            style: TextStyle(fontSize: 18),
+                          ),
+                          // margin: EdgeInsets.symmetric(horizontal: 10),
+                          backgroundColor: Colors.grey,
+                          clipBehavior: Clip.none,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(10))),
+                        ));
+                      },
+                      child: const Icon(Icons.save),
+                    ),
+                  ),
+              });
+        });
   }
 
   Widget _headerBuilder(DragCustomEventGetXController cxt) {
@@ -90,8 +96,11 @@ class DrawAndDragCustomEventPage extends StatelessWidget {
                           }),
                     ),
                     _baseIconButton(
-                      () {},
-                      const Icon(Icons.directions_walk),
+                      cxt.onToggleWalkTrack,
+                      Icon(
+                        Icons.directions_walk,
+                        color: cxt.isToggleWalkTrack ? Colors.blue : null,
+                      ),
                     ),
                     const Spacer(),
                     _baseIconButton(
@@ -106,13 +115,23 @@ class DrawAndDragCustomEventPage extends StatelessWidget {
         ));
   }
 
+  Widget _openWalkerTracker(DragCustomEventGetXController cxt) {
+    return AnimatedPositioned(
+        duration: 300.milliseconds,
+        bottom: cxt.isToggleWalkTrack ? 0 : -110,
+        left: 0,
+        right: 0,
+        child: WalkTrackPointWidget(
+          onPresssed: cxt.onGetWalkingTrack,
+        ));
+  }
+
   Widget _googleMapBuilder(DragCustomEventGetXController cxt) {
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       supportedDevices: const {PointerDeviceKind.touch, PointerDeviceKind.trackpad},
       dragStartBehavior: DragStartBehavior.down,
       onScaleUpdate: cxt.onDragUpdate,
-      // onPanUpdate: cxt.onDragUpdate,
       onScaleEnd: switch (cxt.isToggleDrag) {
         true => (detail) {
             cxt.onToggleDrag();
@@ -121,26 +140,21 @@ class DrawAndDragCustomEventPage extends StatelessWidget {
           },
         _ => null,
       },
-      child: IgnorePointer(
-        ignoring: false,
-        // ignoring: cxt.isToggleDrag,
-        child: GoogleMap(
-          scrollGesturesEnabled: true,
-          zoomGesturesEnabled: true,
-          markers: cxt.pointMaker,
-          polylines: cxt.polylin,
-          compassEnabled: true,
-          mapType: MapType.hybrid,
-          cameraTargetBounds: CameraTargetBounds.unbounded,
-          initialCameraPosition: MaterialGoogleMap.cameraPosition,
-          onMapCreated: cxt.onCreateController,
-          zoomControlsEnabled: true,
-          myLocationEnabled: true,
-          onTap: (value) {
-            cxt.onSelectReset();
-          },
-          minMaxZoomPreference: MaterialGoogleMap.minMaxZoomPreference,
-        ),
+      child: GoogleMap(
+        scrollGesturesEnabled: true,
+        zoomGesturesEnabled: true,
+        markers: cxt.pointMaker,
+        polylines: cxt.polylin,
+        compassEnabled: true,
+        rotateGesturesEnabled: false,
+        mapType: MapType.hybrid,
+        cameraTargetBounds: CameraTargetBounds.unbounded,
+        initialCameraPosition: MaterialGoogleMap.cameraPosition,
+        onMapCreated: cxt.onCreateController,
+        zoomControlsEnabled: true,
+        myLocationEnabled: true,
+        onTap: cxt.onSelectReset,
+        minMaxZoomPreference: MaterialGoogleMap.minMaxZoomPreference,
       ),
     );
   }

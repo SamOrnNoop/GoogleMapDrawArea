@@ -6,6 +6,7 @@ import 'package:learn_map/utils/base_print.dart';
 import '../utils/material_map.dart';
 
 class PolylineAnalyzer {
+  PolylineAnalyzer(this.points);
   static List<LatLng> findCornersAndCurves(List<LatLng> polylineCoordinates) {
     Set<LatLng> points = {};
     if (polylineCoordinates.length < 3) {
@@ -16,16 +17,12 @@ class PolylineAnalyzer {
       LatLng prevPoint = polylineCoordinates[i - 1];
       LatLng currentPoint = polylineCoordinates[i];
       LatLng nextPoint = polylineCoordinates[i + 1];
-
       double angle = _calculateAngle(prevPoint, currentPoint, nextPoint);
-      BaseLogger.log(angle);
-      if (angle > 30 && angle < 60) {
-        points.add(currentPoint);
-      } else if (_specifiAgngle.contains(angle.round())) {
+      if (angle < 60 || _specifiAgngle.contains(angle.round())) {
         if (points.isEmpty) {
           points.add(currentPoint);
         } else {
-          if (MaterialGoogleMap.isBearingCalulat(2, points.last, currentPoint)) {
+          if (MaterialGoogleMap.isBearingCalulat(1, points.last, currentPoint)) {
             points.add(currentPoint);
           }
         }
@@ -47,5 +44,23 @@ class PolylineAnalyzer {
     return angle;
   }
 
-  static const List<int> _specifiAgngle = [0, 70, 80, 90, 100, 110, 120, 130, 140, 150, 160, 170, 178];
+  List<LatLng> points = [];
+
+  bool isFind180Degree(LatLng tappedLatlng, [void Function(int, LatLng)? selected]) {
+    if (points.length > 2) {
+      for (int i = 1; i < points.length; i++) {
+        LatLng begin = points[i - 1];
+        LatLng end = points[i];
+        double degree = PolylineAnalyzer._calculateAngle(begin, tappedLatlng, end);
+
+        if (degree > 120 && degree <= 190) {
+          if (selected != null) selected(i, tappedLatlng);
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  static const List<int> _specifiAgngle = [70, 80, 90, 100, 110, 120, 130, 140, 170, 177, 178, 179, 190, 200];
 }
