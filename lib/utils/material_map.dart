@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 
@@ -13,9 +15,9 @@ BitmapDescriptor? _suggestionIcon;
 
 class MaterialGoogleMap {
   static CameraPosition cameraPosition =
-      CameraPosition(target: const LatLng(11.58330103577817, 104.88023529639402), zoom: minMaxZoomPreference.minZoom!);
+      CameraPosition(target: const LatLng(11.257508998010033, 105.77254247662181), zoom: minMaxZoomPreference.minZoom!);
 
-  static MinMaxZoomPreference minMaxZoomPreference = const MinMaxZoomPreference(16, 40);
+  static MinMaxZoomPreference minMaxZoomPreference = const MinMaxZoomPreference(17.5, 40);
 
   static BitmapDescriptor get iconPoint => _iconPoint ?? BitmapDescriptor.defaultMarker;
 
@@ -35,12 +37,13 @@ class MaterialGoogleMap {
     BaseLogger.log('Has downloaded and saved Icon point');
   }
 
-  static LatLng getAdviceMediatePointHandle(LatLng startPoint, LatLng targetPoint, [int advice = 2]) {
+  static LatLng getPointBetweenHandle(LatLng startPoint, LatLng targetPoint, [int advice = 2]) {
     return LatLng(startPoint.latitude + (targetPoint.latitude - startPoint.latitude) / advice,
         startPoint.longitude + (targetPoint.longitude - startPoint.longitude) / advice);
   }
 
   static void onAnimatedZoomToCurrent(GoogleMapController cxt) {
+    return;
     Geolocator.checkPermission().then((permission) {
       BaseLogger.printError(permission);
       if (isOnlyDenied(permission)) {
@@ -60,7 +63,7 @@ class MaterialGoogleMap {
     return permission == LocationPermission.denied || permission == LocationPermission.deniedForever;
   }
 
-  static bool isBearingCalulat(int long, LatLng start, LatLng end, [bool isGreaterthan = true]) {
+  static bool isBearingCalulat(double long, LatLng start, LatLng end, [bool isGreaterthan = true]) {
     double calcu = Geolocator.distanceBetween(
       start.latitude,
       start.longitude,
@@ -68,5 +71,29 @@ class MaterialGoogleMap {
       end.longitude,
     );
     return isGreaterthan ? calcu.ceil() > long : calcu.ceil() < long;
+  }
+
+  static double scaleOfmatters(
+    final double zoom, {
+    double claim = 1,
+    double? reference,
+  }) {
+    double newZoom;
+    final double baseRadiusAtReferenceZoom = reference ?? 100000.0;
+    const double referenceZoom = 5.0;
+    newZoom = baseRadiusAtReferenceZoom / pow(2, zoom - referenceZoom);
+    newZoom = newZoom.clamp(claim, 200000.0);
+    BaseLogger.log(newZoom);
+    return newZoom;
+  }
+
+  static double zoomLeaveCircle(final double zoom, [double? reference]) {
+    double newRadius;
+    final double baseRadiusAtReferenceZoom = reference ?? 100000.0;
+    const double referenceZoom = 3.11;
+    newRadius = baseRadiusAtReferenceZoom / pow(2, zoom - referenceZoom);
+    newRadius = newRadius.clamp(0.5, 200000.0);
+
+    return newRadius;
   }
 }

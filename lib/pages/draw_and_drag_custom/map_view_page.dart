@@ -1,19 +1,20 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+
 import 'package:google_maps_widget/google_maps_widget.dart';
-import 'package:learn_map/pages/draw_and_drag_custom/animation_controller.dart';
 import 'package:learn_map/pages/draw_and_drag_custom/controller.dart';
 import 'package:learn_map/utils/base_print.dart';
 import 'package:learn_map/utils/defualt_scaffold.dart';
 import 'package:learn_map/utils/material_map.dart';
-
+import '../map_shape_preview_detail.dart';
 import 'walk_track.dart';
+
+int counter = 0;
 
 class DrawAndDragCustomEventPage extends StatelessWidget {
   const DrawAndDragCustomEventPage({super.key});
 
-  DrawMapAnimationController get animatedController => Get.put(DrawMapAnimationController());
   DragCustomEventGetXController get mapController => Get.put(DragCustomEventGetXController());
   @override
   Widget build(BuildContext context) {
@@ -35,6 +36,10 @@ class DrawAndDragCustomEventPage extends StatelessWidget {
                     padding: const EdgeInsets.all(5),
                     child: FloatingActionButton(
                       onPressed: () async {
+                        if (cxt.points.isNotEmpty) {
+                          Get.to(PreviewMapPage(polylin: cxt.polylin));
+                          return;
+                        }
                         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
                           content: Text(
                             "We are developing right now. You cannot save anything here.",
@@ -76,21 +81,25 @@ class DrawAndDragCustomEventPage extends StatelessWidget {
                 child: Row(
                   children: [
                     _baseIconButton(
-                      () {
-                        cxt.onToggleDrag();
-                        animatedController.onGetAnimation();
-                      },
+                      cxt.points.isEmpty
+                          ? () {
+                              cxt.onToggleDrag();
+                              mapController.animatedController.onGetAnimation();
+                            }
+                          : null,
                       GetBuilder(
-                          init: animatedController,
+                          init: mapController.animatedController,
                           builder: (controller) {
                             return AnimatedBuilder(
                                 animation: controller.animationController!,
                                 builder: (_, chi) {
                                   return Icon(
                                     Icons.control_camera_rounded,
-                                    color: controller.isAnimating
-                                        ? Colors.red.withOpacity(controller.tween!.value)
-                                        : Colors.blue[900],
+                                    color: switch (controller.isAnimating) {
+                                      true => Colors.red.withOpacity(controller.tween!.value),
+                                      false when cxt.points.isEmpty => Colors.blue[900],
+                                      _ => null,
+                                    },
                                   );
                                 });
                           }),
@@ -127,21 +136,35 @@ class DrawAndDragCustomEventPage extends StatelessWidget {
   }
 
   Widget _googleMapBuilder(DragCustomEventGetXController cxt) {
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      supportedDevices: const {PointerDeviceKind.touch, PointerDeviceKind.trackpad},
-      dragStartBehavior: DragStartBehavior.down,
-      onScaleUpdate: cxt.onDragUpdate,
-      onScaleEnd: switch (cxt.isToggleDrag) {
-        true => (detail) {
-            cxt.onToggleDrag();
-            animatedController.onGetAnimation();
-            cxt.onDragEndFindCurveAndConer();
-          },
-        _ => null,
+    return Listener(
+      onPointerHover: (event) {
+        if (cxt.isToggleDrag) {
+          cxt.isScrollHandleTrack = false;
+          return cxt.update();
+        } else {
+          if (cxt.points.isEmpty) return;
+          cxt.onHandleScrollMap?.call(event);
+          cxt.isScrollHandleTrack = true;
+          return cxt.update();
+        }
+      },
+      onPointerUp: (event) async {
+        cxt.isScrollHandleTrack = true;
+        if (!cxt.isToggleDrag) return;
+        cxt.onToggleDrag();
+        cxt.animatedController.onGetAnimation();
+        cxt.onDragEndFindCurveAndConer();
+      },
+      onPointerMove: (event) {
+        if (event.device > 0) return;
+        cxt.onDragUpdate?.call(
+          ScaleUpdateDetails(focalPoint: event.position, localFocalPoint: event.localPosition),
+        );
       },
       child: GoogleMap(
-        scrollGesturesEnabled: true,
+        key: cxt.mapGlobalKey,
+        scrollGesturesEnabled: cxt.isScrollHandleTrack,
+        // scrollGesturesEnabled: true,
         zoomGesturesEnabled: true,
         markers: cxt.pointMaker,
         polylines: cxt.polylin,
@@ -175,3 +198,5 @@ class DrawAndDragCustomEventPage extends StatelessWidget {
     );
   }
 }
+
+int counterPointer = 0;

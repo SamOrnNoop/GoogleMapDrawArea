@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:get/get.dart';
+
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:google_maps_flutter_platform_interface/google_maps_flutter_platform_interface.dart';
 import 'package:google_maps_widget/google_maps_widget.dart';
@@ -11,7 +13,10 @@ import 'package:learn_map/utils/collection.dart';
 import 'package:learn_map/utils/constants.dart';
 import 'package:learn_map/utils/material_map.dart';
 
+import 'animation_controller.dart';
+
 class DragCustomEventGetXController extends GetxController {
+  DrawMapAnimationController get animatedController => Get.put(DrawMapAnimationController());
   Size get constraints => Get.size;
   MapIdConstants constMapId = const MapIdConstants();
   GoogleMapController? controller;
@@ -19,7 +24,14 @@ class DragCustomEventGetXController extends GetxController {
   Set<Marker> pointMaker = {};
   Set<Circle> circleCurrentPoint = {};
   SelectedPoint? selectedPoint;
+
+  double zoomeCircle = 1;
+  bool isScrollHandleTrack = true;
   bool isToggleWalkTrack = false;
+
+  bool isSinglePointerDrag = true;
+
+  bool isZoomProcessing = false;
   // LatLng? setlectLatLong;
 
   GoogleMapsFlutterPlatform get mapservice => GoogleMapsFlutterPlatform.instance;
@@ -61,6 +73,8 @@ class DragCustomEventGetXController extends GetxController {
       update();
     });
   }
+
+  Rx<bool> ignoreValue = false.obs;
 
   Circle _circle(LatLng latlng) {
     return Circle(
@@ -104,6 +118,7 @@ class DragCustomEventGetXController extends GetxController {
       points.removeWhere((value) => selectedPoint!.isMomentPoint(value));
       selectedPoint = null;
       isMarkerDarg = false;
+      isScrollHandleTrack = true;
       _onConnectionLine();
     } else {
       pointMaker.clear();
@@ -115,32 +130,77 @@ class DragCustomEventGetXController extends GetxController {
     update();
   }
 
-  void onSelectReset(LatLng latlng) {
+  void onSelectReset(LatLng latlng) async {
     isMarkerDarg = false;
     // _removeIconSuggession();
     _onResetMarkerToDefualt();
-    PolylineAnalyzer(points).isFind180Degree(latlng, (index, position) {
+    bool isOnPolylin = PolylineAnalyzer(points).isFind180Degree(latlng, (index, position) {
       pointMaker.add(_marker(latlng, constMapId.idPointMarker(latlng.hashCode)));
       points.insert(index, position);
     });
+    if (!isOnPolylin) selectedPoint = null;
 
     update();
   }
 
   EdgeInsets get viewSafe => MediaQuery.of(Get.context!).systemGestureInsets;
-  Future<LatLng> getDrag(DragUpdateDetails details) async {
-    double getSafeVerti = viewSafe.top + viewSafe.bottom;
-    double getSafeHoriz = viewSafe.left + viewSafe.right;
-    int screenWidth = ((constraints.height) * (details.localPosition.dx / constraints.width)).ceil();
-
-    int screenHeight = ((constraints.height) * (details.localPosition.dy / constraints.width)).ceil();
-
-    final location = await controller?.getLatLng(ScreenCoordinate(
-        x: screenWidth + (details.localPosition.dx - (getSafeHoriz + getSafeVerti)).ceil(),
-        y: screenHeight + (details.localPosition.dy - (getSafeVerti)).ceil()));
+  Future<LatLng> getDrag(Offset globalPosition) async {
+    /// finde context map
+    final BuildContext mapContext = mapGlobalKey.currentContext!;
+    final RenderBox renderBox = mapContext.findRenderObject() as RenderBox;
+    final Offset localOffset = renderBox.localToGlobal(globalPosition);
+    final MediaQueryData globalQuery = MediaQuery.of(Get.context!);
+    final double devicePixelRatio = globalQuery.devicePixelRatio;
+    // Make screen position in map
+    final int screenX = (localOffset.dx * devicePixelRatio - 2).round();
+    final int screenY = (localOffset.dy * devicePixelRatio - 2).round();
+    final location = await controller?.getLatLng(ScreenCoordinate(x: screenX, y: screenY));
     return Future<LatLng>.value(location);
   }
 
+  void Function(PointerHoverEvent)? get onHandleScrollMap => selectedPoint == null
+      ? null
+      : (event) async {
+          final LatLng latLng = await getDrag(event.position);
+          final double zoom = await controller!.getZoomLevel();
+          final double matters = MaterialGoogleMap.scaleOfmatters(zoom, claim: 1);
+          BaseLogger.log(matters);
+
+          bool isAllow = MaterialGoogleMap.isBearingCalulat(matters, selectedPoint!.value, latLng, false);
+          isSinglePointerDrag = isAllow;
+          if (isAllow) {
+            isScrollHandleTrack = false;
+          } else {
+            isScrollHandleTrack = true;
+          }
+
+          update();
+        };
+
+  void Function(ScaleStartDetails)? get startDrag => switch (isMarkerDarg) {
+        true => (detail) {
+            // isSinglePointerDrag = detail.pointerCount == 1;
+          },
+        _ => null,
+      };
+
+  void Function(ScaleEndDetails)? get endDragDrag => switch (isToggleDrag) {
+        true => (detail) {
+            onToggleDrag();
+            animatedController.onGetAnimation();
+            onDragEndFindCurveAndConer();
+          },
+        false when isMarkerDarg => (v) async {
+            await Future.delayed(50.milliseconds);
+
+            if (selectedPoint != null && isZoomProcessing) {
+              controller?.animateCamera(CameraUpdate.newLatLng(selectedPoint!.value));
+              isZoomProcessing = false;
+            }
+          },
+        _ => null,
+      };
+  GlobalKey<State<GoogleMap>> mapGlobalKey = GlobalKey();
   void Function(ScaleUpdateDetails)? get onDragUpdate => switch (isToggleDrag) {
         true => (details) => onDragCreatePoint(details),
         false when isMarkerDarg => (details) => onDragUpdatePositionPoint(details),
@@ -148,8 +208,7 @@ class DragCustomEventGetXController extends GetxController {
       };
 
   void onDragCreatePoint(ScaleUpdateDetails details) async {
-    getDrag(DragUpdateDetails(globalPosition: details.localFocalPoint, localPosition: details.localFocalPoint))
-        .then((latLng) {
+    getDrag(details.focalPoint).then((latLng) {
       if (points.isEmpty) {
         points.insert(0, latLng);
         pointMaker.add(_marker(latLng, constMapId.idPointMarker(001)));
@@ -169,31 +228,18 @@ class DragCustomEventGetXController extends GetxController {
   }
 
   void onDragUpdatePositionPoint(ScaleUpdateDetails details) async {
-    final LatLng latLng = await getDrag(
-        DragUpdateDetails(globalPosition: details.localFocalPoint, localPosition: details.localFocalPoint));
+    double zoom = await controller!.getZoomLevel();
 
-    await controller?.animateCamera(CameraUpdate.newLatLng(
-      LatLng(latLng.latitude, latLng.longitude),
-    ));
-    return;
-    if (details.pointerCount > 1) {
-      double zoom = await controller!.getZoomLevel();
-      // await controller?.animateCamera(zoom);
-
-      if (details.scale.toInt() >= 0) {
-        await controller?.moveCamera(CameraUpdate.zoomBy(zoom - 0.5));
-      } else {
-        await controller?.moveCamera(CameraUpdate.zoomBy(zoom + 0.5));
-      }
-
-      return;
-    } else if (details.pointerCount < 2) {
+    if (isSinglePointerDrag) {
+      final LatLng latLng = await getDrag(details.focalPoint);
       isMarkerDarg = true;
 
-      bool isAllowDrag = MaterialGoogleMap.isBearingCalulat(10, selectedPoint!.value, latLng, false);
+      final double matters = MaterialGoogleMap.scaleOfmatters(zoom, claim: 15);
+      bool isAllowDrag = MaterialGoogleMap.isBearingCalulat(matters, selectedPoint!.value, latLng, false);
       if (!isAllowDrag) return;
 
       if (selectedPoint == null) return;
+      isScrollHandleTrack = false;
       if (selectedPoint!.isMomentPoint(points.first) && selectedPoint!.isMomentPoint(points.last)) {
         points.first = latLng;
         points.last = latLng;
@@ -229,13 +275,13 @@ class DragCustomEventGetXController extends GetxController {
   }
 
   void onDragEndFindCurveAndConer() async {
-    if (isMarkerDarg) {
-      isMarkerDarg = false;
-      _isToggleDrag = false;
-      selectedPoint = null;
-      update();
-      return;
-    }
+    // if (isMarkerDarg) {
+    //   isMarkerDarg = false;
+    //   _isToggleDrag = false;
+    //   selectedPoint = null;
+    //   update();
+    //   return;
+    // }
     await Future<void>.delayed(350.milliseconds);
     pointMaker.clear();
 
@@ -245,7 +291,7 @@ class DragCustomEventGetXController extends GetxController {
 
     bool isBearing = MaterialGoogleMap.isBearingCalulat(15, resultPoints[lastIndex - 1], resultPoints.last);
     if (isBearing) {
-      LatLng getAdvide = MaterialGoogleMap.getAdviceMediatePointHandle(resultPoints[lastIndex - 1], resultPoints.last);
+      LatLng getAdvide = MaterialGoogleMap.getPointBetweenHandle(resultPoints[lastIndex - 1], resultPoints.last);
       resultPoints.insert(lastIndex, getAdvide);
     }
 

@@ -32,6 +32,10 @@ dependencies:
   flutter_map_line_editor: ^7.0.0
   latlong2: ^0.9.1
   dio: ^5.8.0+1
+  flutter_map_math: ^0.2.4
+  geodesy: ^0.10.2
+  maps_toolkit: ^3.1.0
+  sqflite: ^2.3.3+1
   # latlong2: ^0.9.1
 
 dev_dependencies:
