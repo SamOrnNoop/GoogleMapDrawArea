@@ -1,16 +1,11 @@
-import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-
 import 'package:google_maps_widget/google_maps_widget.dart';
 import 'package:learn_map/pages/draw_and_drag_custom/controller.dart';
-import 'package:learn_map/utils/base_print.dart';
 import 'package:learn_map/utils/defualt_scaffold.dart';
 import 'package:learn_map/utils/material_map.dart';
 import '../map_shape_preview_detail.dart';
 import 'walk_track.dart';
-
-int counter = 0;
 
 class DrawAndDragCustomEventPage extends StatelessWidget {
   const DrawAndDragCustomEventPage({super.key});
@@ -22,6 +17,7 @@ class DrawAndDragCustomEventPage extends StatelessWidget {
         init: mapController,
         builder: (cxt) {
           return DefaultScaffold(
+              resizeToAvoidBottomInset: false,
               body: Stack(
                 children: [
                   _googleMapBuilder(cxt),
@@ -73,16 +69,66 @@ class DrawAndDragCustomEventPage extends StatelessWidget {
               backgroundColor: Colors.blue[900],
             ),
             Container(
-              height: 50,
               width: double.infinity,
               color: Colors.grey[300],
               child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 20),
+                padding: const EdgeInsets.only(top: 4, bottom: 4, left: 5, right: 10),
                 child: Row(
                   children: [
+                    Flexible(
+                        child: Container(
+                      padding: const EdgeInsets.all(5),
+                      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(5)),
+                      child: Row(
+                        children: [
+                          Flexible(
+                            child: TextFormField(
+                              controller: cxt.seachMapController,
+                              decoration: const InputDecoration.collapsed(
+                                  hintText: 'latitude,longitude',
+                                  hintStyle: TextStyle(
+                                    fontWeight: FontWeight.normal,
+                                  )),
+                            ),
+                          ),
+                          GestureDetector(
+                              onTap: () async {
+                                String position = cxt.seachMapController.value.text;
+                                List<String> splitLatlng = position.split(',');
+                                if (splitLatlng.first.isNum && splitLatlng.last.isNum) {
+                                  try {
+                                    final target = LatLng(
+                                      double.parse(splitLatlng.first.trim()),
+                                      double.parse(splitLatlng.last.trim()),
+                                    );
+                                    await cxt.controller!.moveCamera(CameraUpdate.zoomTo(8));
+                                    await Future.delayed(100.milliseconds);
+                                    await cxt.controller!.animateCamera(
+                                      CameraUpdate.newLatLng(target),
+                                    );
+                                  } catch (e) {
+                                    ScaffoldMessenger.of(Get.context!).showSnackBar(
+                                        const SnackBar(content: Text("ទីតាំរបស់លោកអ្នកមិនត្រឹមត្រូវទេ!")));
+                                  }
+                                }
+                              },
+                              child: const CircleAvatar(
+                                radius: 11,
+                                child: Center(
+                                  child: Padding(
+                                    padding: EdgeInsets.all(4.0),
+                                    child: FittedBox(child: Text("GO")),
+                                  ),
+                                ),
+                              ))
+                        ],
+                      ),
+                    )),
+                    const SizedBox(width: 10),
                     _baseIconButton(
                       cxt.points.isEmpty
                           ? () {
+                              if (cxt.isToggleWalkTrack) return;
                               cxt.onToggleDrag();
                               mapController.animatedController.onGetAnimation();
                             }
@@ -93,11 +139,12 @@ class DrawAndDragCustomEventPage extends StatelessWidget {
                             return AnimatedBuilder(
                                 animation: controller.animationController!,
                                 builder: (_, chi) {
+                                  bool disable = !cxt.isScrollHandleTrack && cxt.points.isEmpty;
                                   return Icon(
                                     Icons.control_camera_rounded,
                                     color: switch (controller.isAnimating) {
                                       true => Colors.red.withOpacity(controller.tween!.value),
-                                      false when cxt.points.isEmpty => Colors.blue[900],
+                                      false when disable => Colors.blue[900],
                                       _ => null,
                                     },
                                   );
@@ -111,10 +158,12 @@ class DrawAndDragCustomEventPage extends StatelessWidget {
                         color: cxt.isToggleWalkTrack ? Colors.blue : null,
                       ),
                     ),
-                    const Spacer(),
                     _baseIconButton(
                       mapController.onRemoveMap,
-                      const Icon(Icons.delete_rounded),
+                      const Icon(
+                        Icons.delete_rounded,
+                        color: Colors.red,
+                      ),
                     ),
                   ],
                 ),
@@ -184,14 +233,17 @@ class DrawAndDragCustomEventPage extends StatelessWidget {
 
   Widget _baseIconButton(void Function()? callback, Widget child) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 5),
+      padding: const EdgeInsets.symmetric(horizontal: 2),
       child: Container(
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(5),
         ),
         child: IconButton(
+          padding: const EdgeInsets.all(0),
+          visualDensity: const VisualDensity(vertical: -3, horizontal: -3),
           onPressed: callback,
+          iconSize: 15,
           icon: child,
         ),
       ),

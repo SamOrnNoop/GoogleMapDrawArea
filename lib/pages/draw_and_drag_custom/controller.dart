@@ -24,7 +24,7 @@ class DragCustomEventGetXController extends GetxController {
   Set<Marker> pointMaker = {};
   Set<Circle> circleCurrentPoint = {};
   SelectedPoint? selectedPoint;
-
+  TextEditingController seachMapController = TextEditingController();
   double zoomeCircle = 1;
   bool isScrollHandleTrack = true;
   bool isToggleWalkTrack = false;
@@ -44,8 +44,20 @@ class DragCustomEventGetXController extends GetxController {
 
   bool get isToggleDrag => _isToggleDrag;
   void onToggleWalkTrack() {
+    if (_isToggleDrag) return;
+    if (points.isNotEmpty) {
+      confirmNewField(() {
+        onRemoveMap();
+        Get.back();
+        update();
+      });
+      return;
+    }
+
     isToggleWalkTrack = isToggleWalkTrack.toggle();
+
     if (!isToggleWalkTrack && points.isNotEmpty) _onConnectionLine();
+    if (isToggleWalkTrack) MaterialGoogleMap.onNewPOSITION(controller!, 21);
 
     update();
   }
@@ -164,7 +176,6 @@ class DragCustomEventGetXController extends GetxController {
           final LatLng latLng = await getDrag(event.position);
           final double zoom = await controller!.getZoomLevel();
           final double matters = MaterialGoogleMap.scaleOfmatters(zoom, claim: 1);
-          BaseLogger.log(matters);
 
           bool isAllow = MaterialGoogleMap.isBearingCalulat(matters, selectedPoint!.value, latLng, false);
           isSinglePointerDrag = isAllow;
@@ -371,8 +382,37 @@ class MapIdConstants {
   const MapIdConstants();
 }
 
-
-
+void confirmNewField([void Function()? back]) {
+  showDialog(
+      context: Get.context!,
+      builder: (_) => AlertDialog(
+            titlePadding: const EdgeInsets.all(5),
+            contentPadding: const EdgeInsets.all(5),
+            actionsPadding: const EdgeInsets.all(5),
+            title: const Center(child: Text("បញ្ចាក់")),
+            titleTextStyle: const TextStyle(color: Colors.black, fontSize: 18),
+            content: const Text(
+              "តើអ្នកប្រាកដទេក្នុងការសម្រេចចិត្តបង្កើតការវាស់ថ្មី?",
+              textAlign: TextAlign.center,
+            ),
+            contentTextStyle: const TextStyle(fontSize: 16, color: Colors.black),
+            shape: const RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(15))),
+            actions: [
+              TextButton(
+                  onPressed: Get.back,
+                  child: const Text(
+                    "ទេ",
+                  )),
+              TextButton(
+                onPressed: back,
+                child: const Text(
+                  "បាទ",
+                  style: TextStyle(color: Colors.blueAccent),
+                ),
+              )
+            ],
+          ));
+}
 
   // void onTapAndDragNewPoint(SelectedPoint selectP, [int? dragIndex]) async {
   //   int index = dragIndex ?? (await wherePoint(selectP)).$1;

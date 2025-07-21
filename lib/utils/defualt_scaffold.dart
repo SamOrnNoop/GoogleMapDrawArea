@@ -9,7 +9,8 @@ class DefaultScaffold extends Scaffold {
       super.floatingActionButton,
       super.floatingActionButtonLocation,
       super.bottomNavigationBar,
-      super.drawer});
+      super.drawer,
+      super.resizeToAvoidBottomInset});
 
   @override
   FloatingActionButtonLocation? get floatingActionButtonLocation =>

@@ -2,6 +2,7 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:get/get.dart';
 
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
@@ -15,7 +16,7 @@ BitmapDescriptor? _suggestionIcon;
 
 class MaterialGoogleMap {
   static CameraPosition cameraPosition =
-      CameraPosition(target: const LatLng(11.257508998010033, 105.77254247662181), zoom: minMaxZoomPreference.minZoom!);
+      CameraPosition(target: const LatLng(11.583395088791205, 104.88033954737182), zoom: minMaxZoomPreference.minZoom!);
 
   static MinMaxZoomPreference minMaxZoomPreference = const MinMaxZoomPreference(17.5, 40);
 
@@ -43,19 +44,21 @@ class MaterialGoogleMap {
   }
 
   static void onAnimatedZoomToCurrent(GoogleMapController cxt) {
-    return;
     Geolocator.checkPermission().then((permission) {
       BaseLogger.printError(permission);
       if (isOnlyDenied(permission)) {
         Geolocator.openAppSettings();
       } else {
-        Geolocator.getLastKnownPosition().then((position) async {
-          if (position == null) return;
-          cxt.animateCamera(CameraUpdate.newCameraPosition(
-            CameraPosition(target: LatLng(position.latitude, position.longitude), zoom: 19),
-          ));
-        });
+        onNewPOSITION(cxt);
       }
+    });
+  }
+
+  static void onNewPOSITION(GoogleMapController cxt, [double zoom = 19]) {
+    Geolocator.getCurrentPosition().timeout(2.seconds).then((position) async {
+      cxt.animateCamera(CameraUpdate.newCameraPosition(
+        CameraPosition(target: LatLng(position.latitude, position.longitude), zoom: zoom),
+      ));
     });
   }
 
