@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
-import 'package:learn_map/utils/base_print.dart';
+
 import 'package:learn_map/utils/material_map.dart';
 
 import '../map_shape_preview_detail.dart';
@@ -64,8 +64,6 @@ class GetxDrawWithPointController extends GetxController {
           }
         }));
     addPoint(position);
-
-    BaseLogger.log(position);
   }
 }
 

@@ -1,51 +1,79 @@
 import 'dart:async';
+
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:get/get.dart';
-
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:google_maps_flutter_platform_interface/google_maps_flutter_platform_interface.dart';
 import 'package:google_maps_widget/google_maps_widget.dart';
 import 'package:learn_map/controller/poly_smater.dart';
 import 'package:learn_map/utils/base_print.dart';
-import 'package:learn_map/utils/collection.dart';
 import 'package:learn_map/utils/constants.dart';
 import 'package:learn_map/utils/material_map.dart';
-
 import 'animation_controller.dart';
 
-class DragCustomEventGetXController extends GetxController {
+int _markerId = 0;
+
+class DragCustomEventGetXController extends PointController {
   DrawMapAnimationController get animatedController => Get.put(DrawMapAnimationController());
-  Size get constraints => Get.size;
-  MapIdConstants constMapId = const MapIdConstants();
-  GoogleMapController? controller;
-  List<LatLng> points = [];
-  Set<Marker> pointMaker = {};
-  Set<Circle> circleCurrentPoint = {};
-  SelectedPoint? selectedPoint;
-  TextEditingController seachMapController = TextEditingController();
-  double zoomeCircle = 1;
-  bool isScrollHandleTrack = true;
-  bool isToggleWalkTrack = false;
-
-  bool isSinglePointerDrag = true;
-
-  bool isZoomProcessing = false;
-  // LatLng? setlectLatLong;
 
   GoogleMapsFlutterPlatform get mapservice => GoogleMapsFlutterPlatform.instance;
+
+  Size get constraints => Get.size;
+
+  MapIdConstants constMapId = const MapIdConstants();
+
+  GoogleMapController? controller;
+
+  List<LatLng> get onlyPoints => _mainPoints.map((e) => e.point).toList();
+
+  List<SelectedPoint> undoPoints = [];
+
+  FocusNode focusNode = FocusNode();
+
+  SelectedPoint? selectedPoint;
+
+  TextEditingController seachMapController = TextEditingController();
+
+  GlobalKey<State<GoogleMap>> mapGlobalKey = GlobalKey();
+
+  bool isScrollHandleTrack = true;
+
+  bool isToggleWalkTrack = false;
+
+  bool isSinglePointerDrag = false;
 
   bool isMarkerDarg = false;
 
   int get mapId => controller?.mapId ?? 0;
 
   bool _isToggleDrag = false;
-
   bool get isToggleDrag => _isToggleDrag;
+  Rx<bool> enableMenuSearchPlace = false.obs;
+
+  String? querySearch;
+
+  bool ignoreMap = false;
+
+  Set<Marker> get pointMaker {
+    return List.generate(onlyPoints.length, (index) {
+      SelectedPoint e = _mainPoints[index];
+      return _marker(e.point, index == _mainPoints.length - 1 && onlyPoints.length > 2 ? _mainPoints.first.id : e.id)
+          .copyWith(
+        iconParam: selectedPoint != null && selectedPoint!.id == e.id ? MaterialGoogleMap.updateIconPoint : null,
+      );
+    }).toSet();
+  }
+
+  void onUnrequestField() {
+    enableMenuSearchPlace.value = focusNode.hasPrimaryFocus;
+    focusNode.unfocus();
+  }
+
   void onToggleWalkTrack() {
     if (_isToggleDrag) return;
-    if (points.isNotEmpty) {
+    if (onlyPoints.isNotEmpty) {
       confirmNewField(() {
         onRemoveMap();
         Get.back();
@@ -56,7 +84,7 @@ class DragCustomEventGetXController extends GetxController {
 
     isToggleWalkTrack = isToggleWalkTrack.toggle();
 
-    if (!isToggleWalkTrack && points.isNotEmpty) _onConnectionLine();
+    if (!isToggleWalkTrack && onlyPoints.isNotEmpty) _onConnectionLine();
     if (isToggleWalkTrack) MaterialGoogleMap.onNewPOSITION(controller!, 21);
 
     update();
@@ -69,74 +97,81 @@ class DragCustomEventGetXController extends GetxController {
 
   @override
   void onInit() {
+    resetIdmarker();
+    WidgetsBinding.instance.cancelPointer(0);
     MaterialGoogleMap.initIconMarker();
+    focusNode.addListener(() {
+      enableMenuSearchPlace.value = focusNode.hasPrimaryFocus;
+    });
+
+    seachMapController.addListener(() {
+      final String text = seachMapController.text;
+      querySearch = text.isEmpty ? null : text;
+      update();
+    });
     super.onInit();
   }
 
   void onCreateController(GoogleMapController cxt) async {
     mapservice.init(cxt.mapId);
-
     controller = cxt;
     MaterialGoogleMap.onAnimatedZoomToCurrent(cxt);
-    Geolocator.getLastKnownPosition().then((position) {
-      if (position == null) return;
-
-      circleCurrentPoint.add(_circle(LatLng(position.latitude, position.longitude)));
-      update();
-    });
   }
 
-  Rx<bool> ignoreValue = false.obs;
-
-  Circle _circle(LatLng latlng) {
-    return Circle(
-        circleId: const CircleId('currentPoinst'),
-        center: latlng,
-        radius: 2.5,
-        fillColor: Colors.blue,
-        strokeColor: Colors.red,
-        strokeWidth: 2);
+  Polyline _polyViewLine(List<LatLng> latlngs) {
+    return Polyline(
+      polylineId: const PolylineId('polylin'),
+      points: latlngs,
+      color: Colors.indigo,
+      patterns: [
+        PatternItem.gap(20),
+        PatternItem.dash(20),
+      ],
+      width: 2,
+    );
   }
 
   Set<Polyline> get polylin {
-    return {
-      Polyline(
-        polylineId: const PolylineId('polylin'),
-        points: points,
-        color: Colors.indigo,
-        patterns: [
-          PatternItem.gap(20),
-          PatternItem.dash(20),
-        ],
-        width: 2,
-      ),
-    };
+    return {_polyViewLine(onlyPoints)};
   }
 
   Future<void> updateMarker(SelectedPoint value) async {
-    if (selectedPoint != null) {
-      pointMaker.remove(_marker(selectedPoint!.value, selectedPoint!.id));
-      pointMaker.add(_marker(selectedPoint!.value, selectedPoint!.id));
-    }
-    pointMaker.remove(_marker(value.value, value.id));
-    pointMaker.add(_marker(value.value, value.id).copyWith(iconParam: MaterialGoogleMap.updateIconPoint));
-
+    onMoveMarkerChangeToSelect(old: selectedPoint, newSelect: value);
     selectedPoint = value;
+  }
+
+  void onMoveMarkerChangeToSelect({final SelectedPoint? old, required SelectedPoint newSelect}) {
+    if (old != null) {
+      /// unselected marker
+      final Marker updateMarker = _marker(old.point, old.id);
+      mapservice.updateMarkers(
+          MarkerUpdates.from({updateMarker.copyWith(iconParam: MaterialGoogleMap.updateIconPoint)}, {updateMarker}),
+          mapId: mapId);
+    }
+
+    /// Selected new marker
+    final Marker updateMarker = _marker(newSelect.point, newSelect.id);
+    mapservice.updateMarkers(
+        MarkerUpdates.from({updateMarker}, {updateMarker.copyWith(iconParam: MaterialGoogleMap.updateIconPoint)}),
+        mapId: mapId);
   }
 
   void onRemoveMap() {
     if (selectedPoint != null) {
-      _onRemoveMarkerById(selectedPoint!.id);
-      points.removeWhere((value) => selectedPoint!.isMomentPoint(value));
+      // _onRemoveMarkerById(selectedPoint!.id);
+      _mainPoints.removeWhere((value) => value.id == selectedPoint!.id);
       selectedPoint = null;
       isMarkerDarg = false;
+      polylin.clear();
       isScrollHandleTrack = true;
+
       _onConnectionLine();
     } else {
       pointMaker.clear();
-      points.clear();
-      pointMaker = {};
-      points = [];
+      _mainPoints.clear();
+      undoPoints.clear();
+      // pointMaker = {};
+      resetIdmarker();
     }
 
     update();
@@ -146,16 +181,36 @@ class DragCustomEventGetXController extends GetxController {
     isMarkerDarg = false;
     // _removeIconSuggession();
     _onResetMarkerToDefualt();
-    bool isOnPolylin = PolylineAnalyzer(points).isFind180Degree(latlng, (index, position) {
+    bool isOnPolylin = PolylineAnalyzer(onlyPoints).isFind180Degree(latlng, (index, position) {
       pointMaker.add(_marker(latlng, constMapId.idPointMarker(latlng.hashCode)));
-      points.insert(index, position);
+      // mainPoints.insert(index, );
+      onInsertPointWithGenId(index, position);
     });
     if (!isOnPolylin) selectedPoint = null;
 
     update();
   }
 
-  EdgeInsets get viewSafe => MediaQuery.of(Get.context!).systemGestureInsets;
+  void onUndoPoint() async {
+    // int indexWhere = onlyPoints.indexWhere((element) => SelectedPoint.isOnPoint(element, undoPoints.last.point));
+    if (undoPoints.isEmpty) return;
+    final LatLng targetUndo = undoPoints.last.point;
+    int index = indexWherePoint(point: targetUndo);
+
+    if (index.isNegative) return;
+
+    SelectedPoint element = _mainPoints[index];
+    updateMarker(element);
+    _mainPoints[index] = element..point = undoPoints.last.undoPoint;
+    // points[indexWhere] = targetUndo;
+
+    undoPoints.removeLast();
+    update();
+  }
+
+  // EdgeInsets get viewSafe => MediaQuery.of(Get.context!).systemGestureInsets;
+
+  // Get poistion of latlong from screen calculation.
   Future<LatLng> getDrag(Offset globalPosition) async {
     /// finde context map
     final BuildContext mapContext = mapGlobalKey.currentContext!;
@@ -177,41 +232,48 @@ class DragCustomEventGetXController extends GetxController {
           final double zoom = await controller!.getZoomLevel();
           final double matters = MaterialGoogleMap.scaleOfmatters(zoom, claim: 1);
 
-          bool isAllow = MaterialGoogleMap.isBearingCalulat(matters, selectedPoint!.value, latLng, false);
+          bool isAllow = MaterialGoogleMap.isBearingCalulat(matters, selectedPoint!.point, latLng, false);
           isSinglePointerDrag = isAllow;
           if (isAllow) {
             isScrollHandleTrack = false;
           } else {
             isScrollHandleTrack = true;
           }
-
           update();
         };
 
-  void Function(ScaleStartDetails)? get startDrag => switch (isMarkerDarg) {
-        true => (detail) {
-            // isSinglePointerDrag = detail.pointerCount == 1;
-          },
-        _ => null,
+  void Function(PointerHoverEvent)? get pointerHoverEvent => (event) {
+        // isSinglePointerDrag = event.device >= 1;
+
+        if (isSinglePointerDrag) return;
+        if (selectedPoint != null) {
+          if (!selectedPoint!.isMomentPoint(selectedPoint!.undoPoint)) {
+            selectedPoint!.undoPoint = selectedPoint!.point;
+          }
+        }
+
+        if (enableMenuSearchPlace.value) onUnrequestField();
+        if (isToggleDrag) {
+          isScrollHandleTrack = false;
+          return update();
+        } else {
+          if (onlyPoints.isEmpty) return;
+          // isScrollHandleTrack = true;
+          onHandleScrollMap?.call(event);
+          // return update();
+        }
+      };
+  void Function(PointerDownEvent)? get pointerEventStart => (event) {
+        if (selectedPoint != null) {
+          if (undoPoints.isEmpty) return;
+          if (!undoPoints.last.isMomentPoint(selectedPoint!.point)) {
+            selectedPoint!.undoPoint = selectedPoint!.point;
+          }
+          isMarkerDarg = true;
+          update();
+        }
       };
 
-  void Function(ScaleEndDetails)? get endDragDrag => switch (isToggleDrag) {
-        true => (detail) {
-            onToggleDrag();
-            animatedController.onGetAnimation();
-            onDragEndFindCurveAndConer();
-          },
-        false when isMarkerDarg => (v) async {
-            await Future.delayed(50.milliseconds);
-
-            if (selectedPoint != null && isZoomProcessing) {
-              controller?.animateCamera(CameraUpdate.newLatLng(selectedPoint!.value));
-              isZoomProcessing = false;
-            }
-          },
-        _ => null,
-      };
-  GlobalKey<State<GoogleMap>> mapGlobalKey = GlobalKey();
   void Function(ScaleUpdateDetails)? get onDragUpdate => switch (isToggleDrag) {
         true => (details) => onDragCreatePoint(details),
         false when isMarkerDarg => (details) => onDragUpdatePositionPoint(details),
@@ -219,22 +281,31 @@ class DragCustomEventGetXController extends GetxController {
       };
 
   void onDragCreatePoint(ScaleUpdateDetails details) async {
+    if (isSinglePointerDrag) return;
+    isMarkerDarg = false;
     getDrag(details.focalPoint).then((latLng) {
-      if (points.isEmpty) {
-        points.insert(0, latLng);
-        pointMaker.add(_marker(latLng, constMapId.idPointMarker(001)));
-        points.add(latLng);
+      if (onlyPoints.isEmpty) {
+        onAddPointWithGenId(latLng);
+        onAddPointWithGenId(latLng);
+        update();
         return;
       }
-      int index = points.length - 2;
-      bool isLong = MaterialGoogleMap.isBearingCalulat(3, points[index], latLng);
+      int index = onlyPoints.length - 2;
+      bool isLong = MaterialGoogleMap.isBearingCalulat(3, onlyPoints[index], latLng);
 
       if (isLong) {
-        pointMaker.add(_marker(latLng, constMapId.idPointMarker(002)));
-        points.insert(index, latLng);
+        onInsertPointWithGenId(index, latLng);
+        mapservice.updateMarkers(
+            MarkerUpdates.from({_marker(onlyPoints.last, constMapId.idPointMarker(2))},
+                {_marker(latLng, constMapId.idPointMarker(2))}),
+            mapId: mapId);
+        mapservice.updatePolylines(
+            PolylineUpdates.from(
+              {polylin.first.copyWith(pointsParam: onlyPoints)},
+              polylin,
+            ),
+            mapId: mapId);
       }
-
-      update();
     });
   }
 
@@ -243,29 +314,60 @@ class DragCustomEventGetXController extends GetxController {
 
     if (isSinglePointerDrag) {
       final LatLng latLng = await getDrag(details.focalPoint);
-      isMarkerDarg = true;
-
       final double matters = MaterialGoogleMap.scaleOfmatters(zoom, claim: 15);
-      bool isAllowDrag = MaterialGoogleMap.isBearingCalulat(matters, selectedPoint!.value, latLng, false);
+      bool isAllowDrag = MaterialGoogleMap.isBearingCalulat(matters, selectedPoint!.point, latLng, false);
+      isMarkerDarg = true;
       if (!isAllowDrag) return;
 
       if (selectedPoint == null) return;
-      isScrollHandleTrack = false;
-      if (selectedPoint!.isMomentPoint(points.first) && selectedPoint!.isMomentPoint(points.last)) {
-        points.first = latLng;
-        points.last = latLng;
+      if (isScrollHandleTrack) {
+        isScrollHandleTrack = false;
+        update();
+      }
+      if (selectedPoint!.isMomentPoint(onlyPoints.first) && selectedPoint!.isMomentPoint(onlyPoints.last)) {
+        onMoveFirstAndLastLine(SelectedPoint(id: selectedPoint!.id, point: latLng));
       } else {
-        int indexWhere = points.indexWhere((point) => selectedPoint!.isMomentPoint(point));
-        if (indexWhere.isNegative) return;
-        points[indexWhere] = latLng;
+        onUpdatePoint(latLng, id: selectedPoint!.id);
       }
 
-      selectedPoint = SelectedPoint(id: selectedPoint!.id, value: latLng);
-
-      updateMarker(selectedPoint!);
+      mapservice.updateMarkers(
+          MarkerUpdates.from({
+            _marker(latLng, selectedPoint!.id).copyWith(
+              iconParam: MaterialGoogleMap.updateIconPoint,
+            )
+          }, {
+            _marker(selectedPoint!.point, selectedPoint!.id).copyWith(
+              iconParam: MaterialGoogleMap.updateIconPoint,
+            )
+          }),
+          mapId: mapId);
+      mapservice.updatePolylines(
+          PolylineUpdates.from(
+            {polylin.first.copyWith(pointsParam: onlyPoints)},
+            polylin,
+          ),
+          mapId: mapId);
+      selectedPoint!.point = latLng;
+      // selectedPoint = SelectedPoint(id: selectedPoint!.id, value: latLng)..undoPoint = selectedPoint!.undoPoint;
     }
-    update();
+    // update();
   }
+
+  void Function(PointerUpEvent)? get pointerEndEvent => (event) async {
+        isScrollHandleTrack = true;
+        isSinglePointerDrag = false;
+        if (isToggleDrag) {
+          animatedController.onGetAnimation();
+          await onDragEndFindCurveAndConer();
+          onToggleDrag();
+          return;
+        }
+        if (selectedPoint != null) {
+          if (selectedPoint!.isMomentPoint(selectedPoint!.undoPoint)) return;
+          undoPoints.add(selectedPoint!);
+        }
+        update();
+      };
 
   void onGetWalkingTrack() async {
     Geolocator.checkPermission().then((permission) {
@@ -276,7 +378,8 @@ class DragCustomEventGetXController extends GetxController {
     Position position = await Geolocator.getCurrentPosition();
     LatLng latlng = LatLng(position.latitude, position.longitude);
 
-    points.add(latlng);
+    onAddPointWithGenId(latlng);
+    // points.add(latlng);
     pointMaker.add(_marker(
       latlng,
       const MapIdConstants().idPointMarker(latlng.latitude.hashCode),
@@ -285,18 +388,11 @@ class DragCustomEventGetXController extends GetxController {
     update();
   }
 
-  void onDragEndFindCurveAndConer() async {
-    // if (isMarkerDarg) {
-    //   isMarkerDarg = false;
-    //   _isToggleDrag = false;
-    //   selectedPoint = null;
-    //   update();
-    //   return;
-    // }
+  Future<void> onDragEndFindCurveAndConer() async {
     await Future<void>.delayed(350.milliseconds);
     pointMaker.clear();
-
-    List<LatLng> resultPoints = PolylineAnalyzer.findCornersAndCurves(points);
+    polylin.clear();
+    List<LatLng> resultPoints = PolylineAnalyzer.findCornersAndCurves(onlyPoints);
 
     int lastIndex = resultPoints.length - 1;
 
@@ -306,16 +402,10 @@ class DragCustomEventGetXController extends GetxController {
       resultPoints.insert(lastIndex, getAdvide);
     }
 
-    await Recurvice(resultPoints).forEach(callback: (index, value) {
-      pointMaker.add(_marker(value, constMapId.idPointMarker(value.hashCode)));
-    });
+    onReAssignPoint(resultPoints);
 
-    points = resultPoints;
-    update();
+    return;
   }
-
-  Future<(int, LatLng?)> wherePoint(SelectedPoint p) async =>
-      await Recurvice(points).where((latlng) => p.isMomentPoint(latlng));
 
   Marker _marker(LatLng latlng, String id, [BitmapDescriptor? icon]) {
     // String id = 'marker_id_$iD';
@@ -327,14 +417,9 @@ class DragCustomEventGetXController extends GetxController {
       draggable: false,
       onTap: () async {
         isMarkerDarg = true;
-        SelectedPoint select = SelectedPoint(id: id, value: latlng);
+        SelectedPoint select = SelectedPoint(id: id, point: latlng)..undoPoint = latlng;
         updateMarker(select);
         BaseLogger.log("Marker Tap lng: $latlng : id:$id ");
-        // if (index != null) {
-        //   points.insert(index, select.value);
-        //   _onRemoveMarkerById(id);
-        //   pointMaker.add(_marker(select.value, constMapId.idPointMarker(select.value)));
-        // }
         update();
       },
       position: latlng,
@@ -342,21 +427,19 @@ class DragCustomEventGetXController extends GetxController {
   }
 
   void _onConnectionLine() {
-    if (<LatLng>{points.first}.difference({points.last}).isNotEmpty) {
-      points.add(points.first);
+    if (<LatLng>{onlyPoints.first}.difference({onlyPoints.last}).isNotEmpty) {
+      onAddPointWithGenId(onlyPoints.first);
     }
     return;
   }
 
-  void _onRemoveMarkerById(String id) => pointMaker.removeWhere((e) => e.markerId.value == id);
-
   void _onResetMarkerToDefualt([bool isDefault = true]) {
     if (selectedPoint != null) {
-      _onRemoveMarkerById(selectedPoint!.id);
+      // _onRemoveMarkerById(selectedPoint!.id);
       if (isDefault) {
-        pointMaker.add(_marker(selectedPoint!.value, selectedPoint!.id));
+        pointMaker.add(_marker(selectedPoint!.point, selectedPoint!.id));
       } else {
-        pointMaker.add(_marker(selectedPoint!.value, selectedPoint!.id).copyWith(
+        pointMaker.add(_marker(selectedPoint!.point, selectedPoint!.id).copyWith(
           iconParam: MaterialGoogleMap.updateIconPoint,
         ));
       }
@@ -366,17 +449,71 @@ class DragCustomEventGetXController extends GetxController {
 
 class SelectedPoint {
   final String id;
-  final LatLng value;
-  const SelectedPoint({required this.id, required this.value});
+  LatLng point;
+
+  SelectedPoint({required this.id, required this.point});
 
   bool isMomentPoint(LatLng latlng) {
-    return latlng.latitude == value.latitude && latlng.longitude == value.longitude;
+    return latlng.latitude == point.latitude && latlng.longitude == point.longitude;
+  }
+
+  static bool isOnPoint(LatLng p1, LatLng p2) {
+    return SelectedPoint(id: '', point: p1).isMomentPoint(p2);
+  }
+
+  LatLng undoPoint = const LatLng(0.0, 0.0);
+
+  @override
+  String toString() {
+    return "SelectedPoint(id: $id, point: $point, undoPoint: $undoPoint)";
   }
 }
 
+abstract class PointController extends GetxController {
+  List<SelectedPoint> _mainPoints = [];
+
+  String get markerIdPrimary {
+    _markerId = _markerId + 1;
+    return const MapIdConstants().idPointMarker(_markerId);
+  }
+
+  void resetIdmarker() => _markerId = 0;
+
+  void onAddPointWithGenId(LatLng p) => _mainPoints.add(
+        SelectedPoint(id: markerIdPrimary, point: p),
+      );
+
+  void onInsertPointWithGenId(int index, LatLng p) =>
+      _mainPoints.insert(index, SelectedPoint(id: markerIdPrimary, point: p));
+
+  void onUpdatePoint(LatLng point, {String? id}) {
+    int index = indexWherePoint(id: id, point: point);
+    if (index.isNegative) return;
+    _mainPoints[index].point = point;
+    return;
+  }
+
+  void onMoveFirstAndLastLine(SelectedPoint value) {
+    _mainPoints.first = value;
+    _mainPoints.last = value;
+  }
+
+  void onReAssignPoint(List<LatLng> points) {
+    _markerId = 0;
+    _mainPoints = points.map((p) => SelectedPoint(id: markerIdPrimary, point: p)).toList();
+  }
+
+  int indexWherePoint({String? id, LatLng? point}) => _mainPoints.indexWhere((e) => _matchPoint(e, id, point));
+
+  SelectedPoint wherePoint({String? id, LatLng? point}) => _mainPoints.where((e) => _matchPoint(e, id, point)).first;
+
+  bool _matchPoint(SelectedPoint element, String? id, LatLng? point) =>
+      element.id == id || (point != null && element.isMomentPoint(point));
+}
+
 class MapIdConstants {
-  final String idPrevMarker = 'marker_id_prev';
-  final String idNextMarker = 'marker_id_next';
+  // final String idPrevMarker = 'marker_id_prev';
+  // final String idNextMarker = 'marker_id_next';
   final String idPolyline = "polylin";
   String idPointMarker([Object? id]) => "marker_id_$id";
   const MapIdConstants();
@@ -413,33 +550,3 @@ void confirmNewField([void Function()? back]) {
             ],
           ));
 }
-
-  // void onTapAndDragNewPoint(SelectedPoint selectP, [int? dragIndex]) async {
-  //   int index = dragIndex ?? (await wherePoint(selectP)).$1;
-  //   //  points.indexWhere((latlng) => selectP.isMomentPoint(latlng));
-  //   if (index.isNegative) return;
-  //   int length = points.length - 1;
-  //   int prevIndex = switch (index) { 0 => length - 1, _ => index - 1 };
-  //   int nextIndex = length == index ? 0 : index + 1;
-
-  //   LatLng prevPoint = points[prevIndex];
-  //   LatLng currentPoint = selectP.value;
-  //   LatLng nextPoint = points[nextIndex];
-
-  //   String idPrev = constMapId.idPrevMarker;
-  //   String idNext = constMapId.idNextMarker;
-
-  //   if (MaterialGoogleMap.isBearingCalulat(15, prevPoint, currentPoint)) {
-  //     LatLng prev = MaterialGoogleMap.getAdviceMediatePointHandle(prevPoint, currentPoint);
-  //     pointMaker.add(_marker(prev, idPrev, MaterialGoogleMap.iconSmall, prevIndex + 1));
-  //   } else {
-  //     _onRemoveMarkerById(idPrev);
-  //   }
-
-  //   if (MaterialGoogleMap.isBearingCalulat(15, currentPoint, nextPoint)) {
-  //     LatLng next = MaterialGoogleMap.getAdviceMediatePointHandle(currentPoint, nextPoint);
-  //     pointMaker.add(_marker(next, idNext, MaterialGoogleMap.iconSmall, nextIndex));
-  //   } else {
-  //     _onRemoveMarkerById(idNext);
-  //   }
-  // }

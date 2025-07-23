@@ -47,7 +47,7 @@ class MaterialGoogleMap {
     Geolocator.checkPermission().then((permission) {
       BaseLogger.printError(permission);
       if (isOnlyDenied(permission)) {
-        Geolocator.openAppSettings();
+        // Geolocator.openAppSettings();
       } else {
         onNewPOSITION(cxt);
       }
@@ -86,7 +86,7 @@ class MaterialGoogleMap {
     const double referenceZoom = 5.0;
     newZoom = baseRadiusAtReferenceZoom / pow(2, zoom - referenceZoom);
     newZoom = newZoom.clamp(claim, 200000.0);
-    BaseLogger.log(newZoom);
+
     return newZoom;
   }
 

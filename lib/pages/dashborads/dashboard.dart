@@ -4,6 +4,7 @@ import 'package:learn_map/pages/draw_point/draw_with_point_map_page.dart';
 import 'package:learn_map/utils/base_print.dart';
 import 'package:learn_map/utils/constants.dart';
 import '../draw_and_drag_custom/map_view_page.dart';
+import '../history_log.dart';
 import '../image_test.dart';
 
 class DashboardPageView extends StatefulWidget {
@@ -151,6 +152,8 @@ Widget _builderMenu() {
                 break;
               case 'drag-and-draw':
                 Get.to(const DrawAndDragCustomEventPage());
+              case 'history':
+                Get.to(const HistoryLogPage());
               default:
                 Get.to(const ApppTestImage());
             }

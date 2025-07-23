@@ -1,7 +1,14 @@
+import 'dart:developer';
+
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:google_maps_flutter_platform_interface/google_maps_flutter_platform_interface.dart';
 import 'package:google_maps_widget/google_maps_widget.dart';
+import 'package:learn_map/controller/circle_controller.dart';
+import 'package:learn_map/model/place_field.dart';
 import 'package:learn_map/pages/draw_and_drag_custom/controller.dart';
+import 'package:learn_map/services/https.dart';
 import 'package:learn_map/utils/defualt_scaffold.dart';
 import 'package:learn_map/utils/material_map.dart';
 import '../map_shape_preview_detail.dart';
@@ -32,7 +39,7 @@ class DrawAndDragCustomEventPage extends StatelessWidget {
                     padding: const EdgeInsets.all(5),
                     child: FloatingActionButton(
                       onPressed: () async {
-                        if (cxt.points.isNotEmpty) {
+                        if (cxt.onlyPoints.isNotEmpty) {
                           Get.to(PreviewMapPage(polylin: cxt.polylin));
                           return;
                         }
@@ -75,58 +82,10 @@ class DrawAndDragCustomEventPage extends StatelessWidget {
                 padding: const EdgeInsets.only(top: 4, bottom: 4, left: 5, right: 10),
                 child: Row(
                   children: [
-                    Flexible(
-                        child: Container(
-                      padding: const EdgeInsets.all(5),
-                      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(5)),
-                      child: Row(
-                        children: [
-                          Flexible(
-                            child: TextFormField(
-                              controller: cxt.seachMapController,
-                              decoration: const InputDecoration.collapsed(
-                                  hintText: 'latitude,longitude',
-                                  hintStyle: TextStyle(
-                                    fontWeight: FontWeight.normal,
-                                  )),
-                            ),
-                          ),
-                          GestureDetector(
-                              onTap: () async {
-                                String position = cxt.seachMapController.value.text;
-                                List<String> splitLatlng = position.split(',');
-                                if (splitLatlng.first.isNum && splitLatlng.last.isNum) {
-                                  try {
-                                    final target = LatLng(
-                                      double.parse(splitLatlng.first.trim()),
-                                      double.parse(splitLatlng.last.trim()),
-                                    );
-                                    await cxt.controller!.moveCamera(CameraUpdate.zoomTo(8));
-                                    await Future.delayed(100.milliseconds);
-                                    await cxt.controller!.animateCamera(
-                                      CameraUpdate.newLatLng(target),
-                                    );
-                                  } catch (e) {
-                                    ScaffoldMessenger.of(Get.context!).showSnackBar(
-                                        const SnackBar(content: Text("ទីតាំរបស់លោកអ្នកមិនត្រឹមត្រូវទេ!")));
-                                  }
-                                }
-                              },
-                              child: const CircleAvatar(
-                                radius: 11,
-                                child: Center(
-                                  child: Padding(
-                                    padding: EdgeInsets.all(4.0),
-                                    child: FittedBox(child: Text("GO")),
-                                  ),
-                                ),
-                              ))
-                        ],
-                      ),
-                    )),
+                    _searchPlaceWidget(cxt),
                     const SizedBox(width: 10),
                     _baseIconButton(
-                      cxt.points.isEmpty
+                      cxt.onlyPoints.isEmpty
                           ? () {
                               if (cxt.isToggleWalkTrack) return;
                               cxt.onToggleDrag();
@@ -139,7 +98,7 @@ class DrawAndDragCustomEventPage extends StatelessWidget {
                             return AnimatedBuilder(
                                 animation: controller.animationController!,
                                 builder: (_, chi) {
-                                  bool disable = !cxt.isScrollHandleTrack && cxt.points.isEmpty;
+                                  bool disable = !cxt.isScrollHandleTrack && cxt.onlyPoints.isEmpty;
                                   return Icon(
                                     Icons.control_camera_rounded,
                                     color: switch (controller.isAnimating) {
@@ -159,6 +118,10 @@ class DrawAndDragCustomEventPage extends StatelessWidget {
                       ),
                     ),
                     _baseIconButton(
+                      mapController.onUndoPoint,
+                      const Icon(Icons.undo_sharp),
+                    ),
+                    _baseIconButton(
                       mapController.onRemoveMap,
                       const Icon(
                         Icons.delete_rounded,
@@ -168,7 +131,15 @@ class DrawAndDragCustomEventPage extends StatelessWidget {
                   ],
                 ),
               ),
-            )
+            ),
+            Obx(() {
+              return AnimatedCrossFade(
+                  firstChild: const SizedBox(width: double.infinity),
+                  secondChild: _listPlaceWidgetBuilder(cxt),
+                  crossFadeState:
+                      cxt.enableMenuSearchPlace.value ? CrossFadeState.showSecond : CrossFadeState.showFirst,
+                  duration: 200.milliseconds);
+            })
           ],
         ));
   }
@@ -186,24 +157,9 @@ class DrawAndDragCustomEventPage extends StatelessWidget {
 
   Widget _googleMapBuilder(DragCustomEventGetXController cxt) {
     return Listener(
-      onPointerHover: (event) {
-        if (cxt.isToggleDrag) {
-          cxt.isScrollHandleTrack = false;
-          return cxt.update();
-        } else {
-          if (cxt.points.isEmpty) return;
-          cxt.onHandleScrollMap?.call(event);
-          cxt.isScrollHandleTrack = true;
-          return cxt.update();
-        }
-      },
-      onPointerUp: (event) async {
-        cxt.isScrollHandleTrack = true;
-        if (!cxt.isToggleDrag) return;
-        cxt.onToggleDrag();
-        cxt.animatedController.onGetAnimation();
-        cxt.onDragEndFindCurveAndConer();
-      },
+      onPointerHover: cxt.pointerHoverEvent,
+      onPointerUp: cxt.pointerEndEvent,
+      onPointerDown: cxt.pointerEventStart,
       onPointerMove: (event) {
         if (event.device > 0) return;
         cxt.onDragUpdate?.call(
@@ -214,17 +170,21 @@ class DrawAndDragCustomEventPage extends StatelessWidget {
         key: cxt.mapGlobalKey,
         scrollGesturesEnabled: cxt.isScrollHandleTrack,
         // scrollGesturesEnabled: true,
+
         zoomGesturesEnabled: true,
         markers: cxt.pointMaker,
         polylines: cxt.polylin,
         compassEnabled: true,
-        rotateGesturesEnabled: false,
+        rotateGesturesEnabled: true,
         mapType: MapType.hybrid,
         cameraTargetBounds: CameraTargetBounds.unbounded,
         initialCameraPosition: MaterialGoogleMap.cameraPosition,
         onMapCreated: cxt.onCreateController,
         zoomControlsEnabled: true,
         myLocationEnabled: true,
+
+        onCameraMove: (position) {},
+
         onTap: cxt.onSelectReset,
         minMaxZoomPreference: MaterialGoogleMap.minMaxZoomPreference,
       ),
@@ -251,4 +211,64 @@ class DrawAndDragCustomEventPage extends StatelessWidget {
   }
 }
 
-int counterPointer = 0;
+Widget _searchPlaceWidget(DragCustomEventGetXController cxt) {
+  return Flexible(
+    child: Container(
+      padding: const EdgeInsets.all(5),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(5)),
+      child: Row(
+        children: [
+          Flexible(
+            child: TextFormField(
+              enableSuggestions: true,
+              controller: cxt.seachMapController,
+              focusNode: cxt.focusNode,
+              decoration: const InputDecoration.collapsed(
+                  hintText: 'ស្វែងរកទីតាំង',
+                  hintStyle: TextStyle(
+                    fontWeight: FontWeight.normal,
+                  )),
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+Widget _listPlaceWidgetBuilder(DragCustomEventGetXController cxt) {
+  return Container(
+    height: 300,
+    width: double.infinity,
+    decoration: const BoxDecoration(
+      borderRadius: BorderRadius.vertical(bottom: Radius.circular(5)),
+      color: Colors.white,
+    ),
+    child: FutureBuilder<List<PlaceFieldModel>>(
+        future: HttpsServices().khmerStateOfMap(cxt.querySearch),
+        builder: (_, snap) {
+          if (!snap.hasData) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          return ListView.builder(
+              padding: const EdgeInsets.symmetric(vertical: 20),
+              itemCount: snap.data!.length,
+              itemBuilder: (_, i) {
+                final data = snap.data![i];
+                return ListTile(
+                  enabled: true,
+                  onTap: () {
+                    cxt.onUnrequestField();
+                    cxt.controller!.animateCamera(
+                        CameraUpdate.newCameraPosition(CameraPosition(target: LatLng(data.lat, data.long), zoom: 10)));
+                  },
+                  leading: const Icon(
+                    Icons.place,
+                    color: Colors.red,
+                  ),
+                  title: Text(data.displayName),
+                );
+              });
+        }),
+  );
+}
